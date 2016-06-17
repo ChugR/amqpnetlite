@@ -28,6 +28,50 @@ namespace Test.Amqp
     [TestClass]
     public class AmqpCodecTests
     {
+        // These are the types To Be Tested
+        // 1. A type of 'System.Type' is encoded into which 0xNN encoding
+        // 2. A message encoded with 0xNN encoding becomes what 'System.Type'.
+        //
+        // null 	            0x40 	the null value
+        // boolean:true         0x41 	the boolean value true
+        // boolean:false        0x42 	the boolean value false
+        // uint:uint0           0x43 	the uint value 0
+        // ulong:ulong0         0x44 	the ulong value 0
+        // list:list0           0x45 	the empty list (i.e. the list with no elements)
+        // ubyte 	            0x50 	8-bit unsigned integer
+        // byte 	            0x51 	8-bit two's-complement integer
+        // uint:smallint        0x52 	unsigned integer value in the range 0 to 255 inclusive
+        // ulong:smallulong     0x53 	unsigned long value in the range 0 to 255 inclusive
+        // int:smallint         0x54 	signed integer value in the range -128 to 127 inclusive
+        // long:smalllong       0x55 	signed long value in the range -128 to 127 inclusive
+        // boolean 	            0x56 	boolean with the octet 0x00 being false and octet 0x01 being true
+        // ushort 	            0x60 	16-bit unsigned integer in network byte order
+        // short 	            0x61 	16-bit two's-complement integer in network byte order
+        // uint 	            0x70 	32-bit unsigned integer in network byte order
+        // int 	                0x71 	32-bit two's-complement integer in network byte order
+        // float:ieee-754 	    0x72 	fixed 	4 	IEEE 754-2008 binary32
+        // char:utf32           0x73	a UTF-32BE encoded unicode character
+        // decimal32:ieee-754 	0x74 	fixed 	4 	IEEE 754-2008 decimal32 using the Binary Integer Decimal encoding
+        // ulong 	            0x80 	64-bit unsigned integer in network byte order
+        // long 	            0x81 	64-bit two's-complement integer in network byte order
+        // double:ieee-754 	    0x82 	IEEE 754-2008 binary64
+        // timestamp:ms64       0x83    64-bit signed integer representing milliseconds since the unix epoch
+        // decimal64:754 	    0x84 	IEEE 754-2008 decimal64 using the Binary Integer Decimal encoding
+        // decimal128:754 	    0x94 	IEEE 754-2008 decimal128 using the Binary Integer Decimal encoding
+        // uuid 	            0x98 	UUID as defined in section 4.1.2 of RFC-4122
+        // binary:vbin8 	    0xa0 	up to 2^8 - 1 octets of binary data
+        // string:str8-utf8 	0xa1 	variable 	1 	up to 2^8 - 1 octets worth of UTF-8 unicode (with no byte order mark)
+        // symbol:sym8 	        0xa3 	up to 2^8 - 1 seven bit ASCII characters representing a symbolic value
+        // binary:vbin32 	    0xb0 	up to 2^32 - 1 octets of binary data
+        // string:str32-utf8 	0xb1 	up to 2^32 - 1 octets worth of UTF-8 unicode (with no byte order mark)
+        // symbol:sym32 	    0xb3 	up to 2^32 - 1 seven bit ASCII characters representing a symbolic value
+        // list:list8 	        0xc0 	up to 2^8 - 1 list elements with total size less than 2^8 octets
+        // map:map8 	        0xc1 	up to 2^8 - 1 octets of encoded map data
+        // list:list32 	        0xd0 	up to 2^32 - 1 list elements with total size less than 2^32 octets
+        // map:map32 	        0xd1 	up to 2^32 - 1 octets of encoded map data
+        // array:array8 	    0xe0 	up to 2^8 - 1 array elements with total size less than 2^8 octets
+        // array:array32 	    0xf0 	up to 2^32 - 1 array elements with total size less than 2^32 octets
+
         bool boolTrue = true;
         byte[] boolTrueBin = new byte[] { 0x41 };
         byte[] boolTrueBin1 = new byte[] { 0x56, 0x01 };
@@ -149,7 +193,9 @@ namespace Test.Amqp
         public void AmqpCodecSingleValueTest()
         {
             byte[] workBuffer = new byte[2048];
-
+            Console.WriteLine("[options=\"Header\"]");
+            Console.WriteLine("|================");
+            Console.WriteLine("|AMQP encoding input|System Type");
             RunSingleValueTest(workBuffer, boolTrue, boolTrueBin, "Boolean value is not true.");
             RunSingleValueTest(workBuffer, boolFalse, boolFalseBin, "Boolean value is not false.");
             RunSingleValueTest(workBuffer, ubyteValue, ubyteValueBin, "UByte value is not equal.");
