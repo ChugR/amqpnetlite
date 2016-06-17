@@ -25,6 +25,62 @@ namespace Test.Amqp
     using global::Amqp.Types;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
 
+    public class AmqpTypeNames
+    {
+        Map map = new Map();
+        public AmqpTypeNames()
+        {
+            map[(byte)0x40] = "null";
+            map[(byte)0x41] = "boolean:true";
+            map[(byte)0x42] = "boolean:false";
+            map[(byte)0x43] = "uint:uint0";
+            map[(byte)0x44] = "ulong:ulong0";
+            map[(byte)0x45] = "list:list0";
+            map[(byte)0x50] = "ubyte";
+            map[(byte)0x51] = "byte";
+            map[(byte)0x52] = "uint:smallint";
+            map[(byte)0x53] = "ulong:smallulong";
+            map[(byte)0x54] = "int:smallint";
+            map[(byte)0x55] = "long:smalllong";
+            map[(byte)0x56] = "boolean";
+            map[(byte)0x60] = "ushort";
+            map[(byte)0x61] = "short";
+            map[(byte)0x70] = "uint";
+            map[(byte)0x71] = "int";
+            map[(byte)0x72] = "float:ieee-754";
+            map[(byte)0x73] = "char:utf32";
+            map[(byte)0x74] = "decimal32:ieee-754";
+            map[(byte)0x80] = "ulong";
+            map[(byte)0x81] = "long";
+            map[(byte)0x82] = "double:ieee-754";
+            map[(byte)0x83] = "timestamp:ms64";
+            map[(byte)0x84] = "decimal64:754";
+            map[(byte)0x94] = "decimal128:754";
+            map[(byte)0x98] = "uuid";
+            map[(byte)0xa0] = "binary:vbin8";
+            map[(byte)0xa1] = "string:str8-utf8";
+            map[(byte)0xa3] = "symbol:sym8";
+            map[(byte)0xb0] = "binary:vbin32";
+            map[(byte)0xb1] = "string:str32-utf8";
+            map[(byte)0xb3] = "symbol:sym32";
+            map[(byte)0xc0] = "list:list8";
+            map[(byte)0xc1] = "map:map8";
+            map[(byte)0xd0] = "list:list32";
+            map[(byte)0xd1] = "map:map32";
+            map[(byte)0xe0] = "array:array8";
+            map[(byte)0xf0] = "array:array32";
+        }
+
+        public string this[object key]
+        {
+            get
+            {
+                return (string)this.map[key];
+            }
+        }
+
+    }
+
     [TestClass]
     public class AmqpCodecTests
     {
@@ -49,9 +105,9 @@ namespace Test.Amqp
         // short 	            0x61 	16-bit two's-complement integer in network byte order
         // uint 	            0x70 	32-bit unsigned integer in network byte order
         // int 	                0x71 	32-bit two's-complement integer in network byte order
-        // float:ieee-754 	    0x72 	fixed 	4 	IEEE 754-2008 binary32
+        // float:ieee-754 	    0x72 	IEEE 754-2008 binary32
         // char:utf32           0x73	a UTF-32BE encoded unicode character
-        // decimal32:ieee-754 	0x74 	fixed 	4 	IEEE 754-2008 decimal32 using the Binary Integer Decimal encoding
+        // decimal32:ieee-754 	0x74 	IEEE 754-2008 decimal32 using the Binary Integer Decimal encoding
         // ulong 	            0x80 	64-bit unsigned integer in network byte order
         // long 	            0x81 	64-bit two's-complement integer in network byte order
         // double:ieee-754 	    0x82 	IEEE 754-2008 binary64
@@ -60,7 +116,7 @@ namespace Test.Amqp
         // decimal128:754 	    0x94 	IEEE 754-2008 decimal128 using the Binary Integer Decimal encoding
         // uuid 	            0x98 	UUID as defined in section 4.1.2 of RFC-4122
         // binary:vbin8 	    0xa0 	up to 2^8 - 1 octets of binary data
-        // string:str8-utf8 	0xa1 	variable 	1 	up to 2^8 - 1 octets worth of UTF-8 unicode (with no byte order mark)
+        // string:str8-utf8 	0xa1 	up to 2^8 - 1 octets worth of UTF-8 unicode (with no byte order mark)
         // symbol:sym8 	        0xa3 	up to 2^8 - 1 seven bit ASCII characters representing a symbolic value
         // binary:vbin32 	    0xb0 	up to 2^32 - 1 octets of binary data
         // string:str32-utf8 	0xb1 	up to 2^32 - 1 octets worth of UTF-8 unicode (with no byte order mark)
@@ -163,6 +219,8 @@ namespace Test.Amqp
         DescribedValue described4 = CreateDescribed(ulong.MaxValue, null, new List() { 100, "200" });
         DescribedValue described5 = CreateDescribed(12345L, "", new string[] { "string1", "string2", "string3", "string4" });
 
+        AmqpTypeNames atm = new AmqpTypeNames();
+
         [TestCleanup]
         public void TestCleanup()
         {
@@ -231,6 +289,13 @@ namespace Test.Amqp
             Assert.IsTrue(str32Utf8 == strValue, "UTF8 string32 string value is not equal.");
         }
 
+        public void ReportEncodedType(object value, Type valType)
+        {
+            byte[] workBuffer = new byte[4096];
+            ByteBuffer buffer = new ByteBuffer(workBuffer, 0, 0, workBuffer.Length); 
+            Encoder.WriteObject(buffer, value);
+            Console.WriteLine("| {0} | {1} |", valType, atm[workBuffer[0]]);
+        }
         [TestMethod()]
         public void AmqpCodecListTest()
         {
@@ -239,33 +304,64 @@ namespace Test.Amqp
             string strBig = new string('A', 512);
 
             List list = new List();
+            Console.WriteLine("| incoming user variable type | encoded as AMQP type |");
             list.Add(boolTrue);
+            ReportEncodedType(boolTrue, boolTrue.GetType());
             list.Add(boolFalse);
+            ReportEncodedType(boolFalse, boolFalse.GetType());
             list.Add(ubyteValue);
+            ReportEncodedType(ubyteValue, ubyteValue.GetType());
             list.Add(ushortValue);
+            ReportEncodedType(ushortValue, ushortValue.GetType());
             list.Add(uintValue);
+            ReportEncodedType(uintValue, uintValue.GetType());
             list.Add(ulongValue);
+            ReportEncodedType(ulongValue, ulongValue.GetType());
             list.Add(byteValue);
+            ReportEncodedType(byteValue, byteValue.GetType());
             list.Add(shortValue);
+            ReportEncodedType(shortValue, shortValue.GetType());
             list.Add(intValue);
+            ReportEncodedType(intValue, intValue.GetType());
             list.Add(longValue);
+            ReportEncodedType(longValue, longValue.GetType());
             list.Add(null);
+            //ReportEncodedType(null, null.GetType());
             list.Add(floatValue);
+            ReportEncodedType(floatValue, floatValue.GetType());
             list.Add(doubleValue);
+            ReportEncodedType(doubleValue, doubleValue.GetType());
             list.Add(charValue);
+            ReportEncodedType(charValue, charValue.GetType());
             list.Add(dtValue);
+            ReportEncodedType(dtValue, dtValue.GetType());
             list.Add(uuidValue);
+            ReportEncodedType(uuidValue, uuidValue.GetType());
             list.Add(bin8ValueBin);
+            ReportEncodedType(bin8ValueBin, bin8ValueBin.GetType());
             list.Add(bin32ValueBin);
+            ReportEncodedType(bin32ValueBin, bin32ValueBin.GetType());
+            //Symbol nullSym = new Symbol(null);
+            Symbol strValueSym = new Symbol(strValue);
+            Symbol strBigSym = new Symbol(strBig);
             list.Add((Symbol)null);
+            //ReportEncodedType(nullSym, nullSym.GetType());
             list.Add(new Symbol(strValue));
+            ReportEncodedType(strValueSym, strValueSym.GetType());
             list.Add(new Symbol(strBig));
+            ReportEncodedType(strBigSym, strBigSym.GetType());
             list.Add(strValue);
+            ReportEncodedType(strValue, strValue.GetType());
             list.Add(strBig);
+            ReportEncodedType(strBig, strBig.GetType());
             list.Add(described1);
+            ReportEncodedType(described1, described1.GetType());
             list.Add(described2);
+            ReportEncodedType(described2, described2.GetType());
             list.Add(described3);
+            ReportEncodedType(described3, described3.GetType());
             list.Add(described4);
+            ReportEncodedType(described4, described4.GetType());
 
             Encoder.WriteObject(buffer, list);
 
