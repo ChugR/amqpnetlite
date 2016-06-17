@@ -742,8 +742,15 @@ namespace Test.Amqp
             throw new Exception(type.Name + " is not covered!");
         }
 
+        static string GetHexStringFrom(byte[] byteArray)
+        {
+            return BitConverter.ToString(byteArray, 0, Math.Min(3, byteArray.Length));
+        }
+
         static void RunSingleValueTest<T>(byte[] workBuffer, T value, byte[] result, string message)
         {
+            Console.WriteLine("SingleValue type: {0} encoded as {1} is type defined in: {2}",
+                value.GetType(), GetHexStringFrom(result), message);
             ByteBuffer buffer;
             Encoder.WriteObject(buffer = new ByteBuffer(workBuffer, 0, 0, workBuffer.Length), value);
             EnsureEqual(result, 0, result.Length, buffer.Buffer, buffer.Offset, buffer.Length);

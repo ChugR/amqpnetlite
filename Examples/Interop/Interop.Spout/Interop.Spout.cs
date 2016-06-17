@@ -63,6 +63,8 @@ namespace Examples.Interop {
 
                     Message message = new Message(options.Content);
                     message.Properties = new Properties() { MessageId = id };
+                    message.ApplicationProperties = new ApplicationProperties();
+                    message.ApplicationProperties["color"] = "green";
                     sender.Send(message);
                     if (options.Print)
                     {

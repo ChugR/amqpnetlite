@@ -27,7 +27,7 @@ namespace Test.Amqp
     [TestClass]
     public class TransactionTests
     {
-        Address address = LinkTests.address;
+        Address address = new Address("amqp://admin:password@10.19.176.108:5672");
 
         [ClassInitialize]
         public static void Initialize(TestContext context)

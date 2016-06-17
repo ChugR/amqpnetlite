@@ -14,7 +14,7 @@
 //  See the Apache Version 2.0 License for specific language governing permissions and 
 //  limitations under the License.
 //  ------------------------------------------------------------------------------------
-
+using System;
 using System.Threading;
 using System.Threading.Tasks;
 using Amqp;
@@ -185,6 +185,8 @@ namespace Test.Amqp
         public async Task CustomTransportConfiguration()
         {
             string testName = "CustomTransportConfiguration";
+            Trace.TraceLevel = TraceLevel.Frame;
+            Trace.TraceListener = (f, a) => System.Console.WriteLine(DateTime.Now.ToString("[hh:mm:ss.fff]") + " " + string.Format(f, a));
 
             ConnectionFactory factory = new ConnectionFactory();
             factory.TCP.NoDelay = true;
@@ -195,7 +197,7 @@ namespace Test.Amqp
             factory.AMQP.HostName = "contoso.com";
             factory.AMQP.ContainerId = "container:" + testName;
 
-            Address sslAddress = new Address("amqps://guest:guest@127.0.0.1:5671");
+            Address sslAddress = new Address("amqps://admin:password@10.18.97.154:5671"); // 
             Connection connection = await factory.CreateAsync(sslAddress);
             Session session = new Session(connection);
             SenderLink sender = new SenderLink(session, "sender-" + testName, "q1");

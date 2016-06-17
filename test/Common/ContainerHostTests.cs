@@ -50,8 +50,8 @@ namespace Test.Amqp
 
         static ContainerHostTests()
         {
-            //Trace.TraceLevel = TraceLevel.Frame;
-            //Trace.TraceListener = (f, a) => System.Diagnostics.Trace.WriteLine(DateTime.Now.ToString("[hh:mm:ss.fff]") + " " + string.Format(f, a));
+            Trace.TraceLevel = TraceLevel.Frame;
+            Trace.TraceListener = (f, a) => System.Console.WriteLine(DateTime.Now.ToString("[hh:mm:ss.fff]") + " " + string.Format(f, a));
         }
 
         public void ClassInitialize()
