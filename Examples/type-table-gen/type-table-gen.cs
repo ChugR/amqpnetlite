@@ -132,7 +132,7 @@ namespace type_table_gen
 
             AmqpTypeNames atm = new AmqpTypeNames();
 
-            Console.WriteLine("| {0} | [0x{2}] {1} |", valueType, atm[workBuffer[0]], BitConverter.ToString(workBuffer, 0, 1));
+            Console.WriteLine("| {0} | [0x{2}] {1}", valueType, atm[workBuffer[0]], BitConverter.ToString(workBuffer, 0, 1));
         }
         static void SystemToAmqp()
         {
@@ -165,7 +165,7 @@ namespace type_table_gen
 
             Console.WriteLine("[options=\"header\"]");
             Console.WriteLine("|====");
-            Console.WriteLine("| Input User.NET Type | Output AMQP Type |");
+            Console.WriteLine("| User.NET Type | Over-the-wire AMQP Type");
 
             SystemToAmqpTest((object)v010, v010.GetType());
             SystemToAmqpTest((object)v020, v020.GetType());
@@ -208,14 +208,14 @@ namespace type_table_gen
 
             if (value != null)
             {
-                Console.WriteLine("| [0x{0}] {1} | {2} |",
+                Console.WriteLine("| [0x{0}] {1} | {2}",
                     BitConverter.ToString(bytes, 0, 1),
                     atm[bytes[0]],
                     value.GetType());
             }
             else
             {
-                Console.WriteLine("| [0x{0}] {1} | null |",
+                Console.WriteLine("| [0x{0}] {1} | null",
                     BitConverter.ToString(bytes, 0, 1),
                     atm[bytes[0]]);
             }
@@ -266,7 +266,7 @@ namespace type_table_gen
 
             Console.WriteLine("[options=\"header\"]");
             Console.WriteLine("|====");
-            Console.WriteLine("| Input AMQP Type | Output User .NET Type |");
+            Console.WriteLine("| Over-the-wire AMQP Type | User .NET Type");
 
             AmqpToSystemTest(nullBin);
             AmqpToSystemTest(boolTrueBin);
