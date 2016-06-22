@@ -68,7 +68,7 @@ namespace type_table_gen
             map[(byte)0x45] = "list:list0";
             map[(byte)0x50] = "ubyte";
             map[(byte)0x51] = "byte";
-            map[(byte)0x52] = "uint:smallint";
+            map[(byte)0x52] = "uint:smalluint";
             map[(byte)0x53] = "ulong:smallulong";
             map[(byte)0x54] = "int:smallint";
             map[(byte)0x55] = "long:smalllong";
@@ -119,6 +119,69 @@ namespace type_table_gen
 
     }
 
+    public class AmqpTypeDescriptions
+    {
+        Dictionary<byte, string> map = new Dictionary<byte, string>();
+        public AmqpTypeDescriptions()
+        {
+            map[(byte)0x40] = "Null";
+            map[(byte)0x41] = "Boolean true";
+            map[(byte)0x42] = "Boolean false";
+            map[(byte)0x43] = "16-bit unsigned 0";
+            map[(byte)0x44] = "32-bit unsigned 0";
+            map[(byte)0x45] = "the empty list (i.e. the list with no elements)";
+            map[(byte)0x50] = "8-bit unsigned integer";
+            map[(byte)0x51] = "8-bit signed integer";
+            map[(byte)0x52] = "32-bit unsigned integer in the range 0 to 255 inclusive";
+            map[(byte)0x53] = "64-bit unsigned in the range 0 to 255 inclusive";
+            map[(byte)0x54] = "32-bit signed integer in the range -128 to 127 inclusive";
+            map[(byte)0x55] = "64-bit signed long in the range -128 to 127 inclusive";
+            map[(byte)0x56] = "Boolean true or false";
+            map[(byte)0x60] = "16-bit unsigned integer";
+            map[(byte)0x61] = "16-bit signed integer";
+            map[(byte)0x70] = "32-bit unsigned integer";
+            map[(byte)0x71] = "32-bit signed integer";
+            map[(byte)0x72] = "IEEE 754-2008 binary32";
+            map[(byte)0x73] = "32-bit UTF-32BE unicode code point";
+            map[(byte)0x74] = "IEEE 754-2008 decimal32 using the Binary Integer Decimal encoding";
+            map[(byte)0x80] = "64-bit unsigned integer";
+            map[(byte)0x81] = "64-bit signed integer";
+            map[(byte)0x82] = "IEEE 754-2008 binary64";
+            map[(byte)0x83] = "64-bit signed milliseconds since 00:00:00 (UTC), 1 January 1970.";
+            map[(byte)0x84] = "IEEE 754-2008 decimal64 using the Binary Integer Decimal encoding";
+            map[(byte)0x94] = "IEEE 754-2008 decimal128 using the Binary Integer Decimal encoding";
+            map[(byte)0x98] = "UUID as defined in section 4.1.2 of RFC-4122";
+            map[(byte)0xa0] = "up to 2^8 - 1 octets of binary data";
+            map[(byte)0xa1] = "up to 2^8 - 1 octets worth of UTF-8 unicode (with no byte order mark)";
+            map[(byte)0xa3] = "up to 2^8 - 1 seven bit ASCII characters representing a symbolic value";
+            map[(byte)0xb0] = "up to 2^32 - 1 octets of binary data";
+            map[(byte)0xb1] = "up to 2^32 - 1 octets worth of UTF-8 unicode (with no byte order mark)";
+            map[(byte)0xb3] = "up to 2^32 - 1 seven bit ASCII characters representing a symbolic value";
+            map[(byte)0xc0] = "up to 2^8 - 1 list elements with total size less than 2^8 octets";
+            map[(byte)0xc1] = "up to 2^8 - 1 octets of encoded map data";
+            map[(byte)0xd0] = "up to 2^32 - 1 list elements with total size less than 2^32 octets";
+            map[(byte)0xd1] = "up to 2^32 - 1 octets of encoded map data";
+            map[(byte)0xe0] = "up to 2^8 - 1 array elements with total size less than 2^8 octets";
+            map[(byte)0xf0] = "up to 2^32 - 1 array elements with total size less than 2^32 octets";
+        }
+
+        public string this[byte key]
+        {
+            get
+            {
+                if (this.map.ContainsKey(key))
+                {
+                    return this.map[key];
+                }
+                else
+                {
+                    string res = String.Format("ERROR: Type {0} is not an AMQP type.", key);
+                    return res;
+                }
+            }
+        }
+    }
+
     class Program
     {
         /// <summary>
@@ -131,64 +194,70 @@ namespace type_table_gen
             Amqp.Types.Encoder.WriteObject(buffer, value, false);
 
             AmqpTypeNames atm = new AmqpTypeNames();
+            AmqpTypeDescriptions atd = new AmqpTypeDescriptions();
 
-            Console.WriteLine("| {0} | [0x{2}] {1}", valueType, atm[workBuffer[0]], BitConverter.ToString(workBuffer, 0, 1));
+            Console.WriteLine("| {0} | [0x{2}] {1} | {3}", valueType, atm[workBuffer[0]], 
+                BitConverter.ToString(workBuffer, 0, 1), atd[workBuffer[0]]);
         }
         static void SystemToAmqp()
         {
-            System.Boolean v010 = true;
-            System.Boolean v020 = false;
-            System.Byte v030 = 3;
-            System.Char v040 = 'a';
-            System.DateTime v050 = new DateTime(2012, 01, 01);
-            System.SByte v060 = -1;
-            System.Byte v070 = 1;
-            System.Int16 v080 = -2;
-            System.UInt16 v090 = 2;
-            System.Int32 v100 = -3;
-            System.UInt32 v110 = 3;
-            System.Int64 v120 = -4;
-            System.UInt64 v130 = 4;
+            System.String vNull = null;
+            System.Boolean vBool = true;
+            //System.Boolean v020 = false;
+            System.Byte vByte = 3;
+            System.Char vChar = 'a';
+            System.DateTime vDateTime = new DateTime(2012, 01, 01);
+            System.SByte vSByte = -1;
+            System.Int16 vInt16 = -2;
+            System.UInt16 vUInt16 = 2;
+            System.Int32 vInt32 = -3;
+            System.UInt32 vUint32 = 3;
+            System.Int64 vInt64 = -4;
+            System.UInt64 vUInt64 = 4;
 
-            System.Single v140 = 1.1F;
-            System.Double v150 = 1.2;
+            System.Single vSingle = 1.1F;
+            System.Double vDouble = 1.2;
             //System.Decimal v160 = 1.3M;
 
-            System.Guid v170 = new Guid();
+            System.Guid vGuid = new Guid();
 
-            System.Byte[] v180 = { 1, 2, 3 };
+            System.Byte[] vByteArray = { 1, 2, 3 };
             // System.Byte[] v190 = new byte[4096]; fails
 
-            Amqp.Types.List w01 = new Amqp.Types.List() { 100, "200" };
-            Amqp.Types.Map w02 = new Amqp.Types.Map();
-            w02[0] = "ABC";
+            Amqp.Types.List vList = new Amqp.Types.List() { 100, "200" };
+            Amqp.Types.Map vMap = new Amqp.Types.Map();
+            vMap[0] = "ABC";
 
             Console.WriteLine("[options=\"header\"]");
             Console.WriteLine("|====");
-            Console.WriteLine("| User.NET Type | Over-the-wire AMQP Type");
+            Console.WriteLine("| User .NET Type | Over-the-wire AMQP Type | Description");
 
-            SystemToAmqpTest((object)v010, v010.GetType());
-            SystemToAmqpTest((object)v020, v020.GetType());
-            SystemToAmqpTest((object)v030, v030.GetType());
-            SystemToAmqpTest((object)v040, v040.GetType());
-            SystemToAmqpTest((object)v050, v050.GetType());
-            SystemToAmqpTest((object)v060, v060.GetType());
-            SystemToAmqpTest((object)v070, v070.GetType());
-            SystemToAmqpTest((object)v080, v080.GetType());
-            SystemToAmqpTest((object)v090, v090.GetType());
-            SystemToAmqpTest((object)v100, v100.GetType());
-            SystemToAmqpTest((object)v110, v110.GetType());
-            SystemToAmqpTest((object)v120, v120.GetType());
-            SystemToAmqpTest((object)v130, v130.GetType());
-            SystemToAmqpTest((object)v140, v140.GetType());
-            SystemToAmqpTest((object)v150, v150.GetType());
+            // Hack alert: Null is a pain to suss out. Pass the bool
+            // type for the test and manually edit the result for the doc
+            Console.WriteLine("HACK ALERT: Use the following line and delete the one after.");
+            Console.WriteLine("| (any)null | [0x40] null | Null");
+            SystemToAmqpTest((object)vNull, vBool.GetType());
+            SystemToAmqpTest((object)vByte, vByte.GetType());
+            SystemToAmqpTest((object)vSByte, vSByte.GetType());
+            SystemToAmqpTest((object)vBool, vBool.GetType());
+            SystemToAmqpTest((object)vUInt16, vUInt16.GetType());
+            SystemToAmqpTest((object)vInt16, vInt16.GetType());
+            SystemToAmqpTest((object)vUint32, vUint32.GetType());
+            SystemToAmqpTest((object)vInt32, vInt32.GetType());
+            SystemToAmqpTest((object)vSingle, vSingle.GetType());
+            SystemToAmqpTest((object)vChar, vChar.GetType());
+            SystemToAmqpTest((object)vUInt64, vUInt64.GetType());
+            SystemToAmqpTest((object)vInt64, vInt64.GetType());
+            SystemToAmqpTest((object)vDouble, vDouble.GetType());
+
+            SystemToAmqpTest((object)vDateTime, vDateTime.GetType());
             //SystemToAmqpTest((object)v160, v160.GetType());
-            SystemToAmqpTest((object)v170, v170.GetType());
-            SystemToAmqpTest((object)v180, v180.GetType());
+            SystemToAmqpTest((object)vGuid, vGuid.GetType());
+            SystemToAmqpTest((object)vByteArray, vByteArray.GetType());
             //SystemToAmqpTest((object)v190, v190.GetType());
 
-            SystemToAmqpTest((object)w01, w01.GetType());
-            SystemToAmqpTest((object)w02, w02.GetType());
+            SystemToAmqpTest((object)vList, vList.GetType());
+            SystemToAmqpTest((object)vMap, vMap.GetType());
             Console.WriteLine("|====");
         }
 
@@ -205,17 +274,19 @@ namespace type_table_gen
             value = Amqp.Types.Encoder.ReadObject(buffer);
 
             AmqpTypeNames atm = new AmqpTypeNames();
+            AmqpTypeDescriptions atd = new AmqpTypeDescriptions();
 
             if (value != null)
             {
-                Console.WriteLine("| [0x{0}] {1} | {2}",
+                Console.WriteLine("| [0x{0}] {1} | {2} | {3}",
                     BitConverter.ToString(bytes, 0, 1),
                     atm[bytes[0]],
-                    value.GetType());
+                    value.GetType(),
+                    atd[bytes[0]]);
             }
             else
             {
-                Console.WriteLine("| [0x{0}] {1} | null",
+                Console.WriteLine("| [0x{0}] {1} | null | null",
                     BitConverter.ToString(bytes, 0, 1),
                     atm[bytes[0]]);
             }
