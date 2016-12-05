@@ -6,12 +6,14 @@ using System.Threading.Tasks;
 using Amqp;
 using Amqp.Types;
 using System.Runtime.Serialization.Json;
+using Newtonsoft.Json;
 
-namespace Receiver
+
+namespace Qpidit
 {
     class Receiver
     {
-        static void Main(string[] args)
+        static int Main(string[] args)
         {
             /*
              * --- main ---
@@ -25,11 +27,32 @@ namespace Receiver
                 throw new System.ArgumentException("Required argument count must be 4: brokerAddr queueName amqpType nValues");
             }
 
+            int exitCode = 0;
+
             foreach (string arg in args)
             {
                 Console.WriteLine(arg);
             }
 
+            
+            try
+            {
+                //string instring = "[\"0x0\", \"0x7fffffff\", \"0x80000000\", \"0xffffffff\"]";
+                List<int> listOfInts = new List<int>();
+                listOfInts.Add(0);
+                listOfInts.Add(1);
+                listOfInts.Add(2);
+                listOfInts.Add(-1);
+
+                var result = JsonConvert.SerializeObject(listOfInts);
+                Console.WriteLine("The list became: {0}", result);
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine("Exception {0}.", e);
+                exitCode = 1;
+            }
+            return exitCode;
         }
     }
 }
