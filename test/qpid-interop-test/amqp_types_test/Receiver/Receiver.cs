@@ -69,11 +69,11 @@ namespace Qpidit
                         // got one
                         _received += 1;
                         receiverlink.Accept(message);
-                        _receivedValueList = string.Format("Received {0} or {1} messages", _received, _expected);
+                        _receivedValueList = string.Format("Received {0} of {1} messages", _received, _expected);
                     }
                     else
                     {
-                        throw new ApplicationException("Time out receiving message");
+                        throw new ApplicationException(string.Format("Time out receiving message {0} of {1}", _received+1, _expected));
                     }
                 }
             }
