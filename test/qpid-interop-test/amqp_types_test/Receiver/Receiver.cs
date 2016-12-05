@@ -13,6 +13,41 @@ namespace Qpidit
 {
     class Receiver
     {
+        private string _brokerUrl;
+        private string _queueName;
+        private string _amqpType;
+        private UInt32 _expected;
+        private UInt32 _received;
+        private string _receivedValueList;
+
+        public Receiver(string brokerUrl, string queueName, string amqpType, UInt32 expected)
+        {
+            _brokerUrl = brokerUrl;
+            _queueName = queueName;
+            _amqpType = amqpType;
+            _expected = expected;
+            _received = 0;
+            _receivedValueList = "";
+            Console.WriteLine("Created Receiver. broker={0}, queue={1}, type={2}, expected={3}",
+                _brokerUrl, _queueName, _amqpType, _expected);
+        }
+
+        ~Receiver()
+        { }
+
+        public string receivedValueList
+        {
+            get { return _receivedValueList;  }
+        }
+
+        public void run()
+        {
+            _receivedValueList = "I have run and that's that!";
+        }
+    }
+
+    class MainProgram
+    {
         static int Main(string[] args)
         {
             /*
@@ -34,9 +69,9 @@ namespace Qpidit
                 Console.WriteLine(arg);
             }
 
-            
             try
             {
+                //HACK: serialize objects into string
                 //string instring = "[\"0x0\", \"0x7fffffff\", \"0x80000000\", \"0xffffffff\"]";
                 List<int> listOfInts = new List<int>();
                 listOfInts.Add(0);
@@ -46,12 +81,22 @@ namespace Qpidit
 
                 var result = JsonConvert.SerializeObject(listOfInts);
                 Console.WriteLine("The list became: {0}", result);
+
+                // create and run a receiver
+                Receiver receiver = new Qpidit.Receiver(args[0], args[1], args[2], UInt32.Parse(args[3]));
+                receiver.run();
+
+                // Report result
+                Console.WriteLine(args[2]);
+                Console.WriteLine("{0}", receiver.receivedValueList);
+
             }
             catch (Exception e)
             {
-                Console.WriteLine("Exception {0}.", e);
+                Console.WriteLine("AmqpReceiver error: {0}.", e);
                 exitCode = 1;
             }
+
             return exitCode;
         }
     }
