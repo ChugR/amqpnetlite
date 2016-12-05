@@ -39,9 +39,54 @@ namespace Qpidit
             get { return _receivedValueList; }
         }
 
-        public void messageCallback(ReceiverLink receiver, Message message)
+        public void messageVerify(Message message)
         {
-            // Received a message
+            // Verify that message body is of expected type
+            object body = message.BodySection;
+
+            var data = body as Data;
+            if (data != null)
+            {
+                if (data.Buffer != null)
+                {
+                    Console.WriteLine("Data, data.Buffer: {1}", data.Buffer.Length);
+                }
+                else
+                {
+                    Console.WriteLine("Data, data.Binary: {1}", data.Binary.Length);
+                }
+            }
+
+            var value = body as AmqpValue;
+            if (value != null)
+            {
+                // It's a value
+                Console.WriteLine("value.GetType.Name: {0}", value.GetType().Name);
+
+                // Get the value's value
+                var valueValue = value.Value;
+                Console.WriteLine("value.Value.GetType.Name: {0}", valueValue.GetType().Name);
+
+                // Get the value's bytes
+                ByteBuffer valueBuffer = value.ValueBuffer;
+                valueBuffer.Reset();
+                Console.WriteLine("Starting byte (amqp encoding?): {0}",
+                    valueBuffer.Buffer[valueBuffer.WritePos]);
+
+                var b = value.Value as byte[];
+                if (b != null)
+                {
+                    Console.WriteLine("AmqpValue, value.Value as byte[]: {1}", b.Length);
+                }
+
+                var f = value.Value as ByteBuffer;
+                if (f != null)
+                {
+                    Console.WriteLine("AmqpValue, value.Value as ByteBuffer : {1}", f.Length);
+                }
+            }
+
+            Console.WriteLine("Body: {1}", body.ToString());
         }
 
         public void run()
@@ -68,7 +113,8 @@ namespace Qpidit
                     {
                         // got one
                         _received += 1;
-                        receiverlink.Accept(message);
+                        // receiverlink.Accept(message); HACK - don't ack so the message hangs around
+                        messageVerify(message);
                         _receivedValueList = string.Format("Received {0} of {1} messages", _received, _expected);
                     }
                     else
