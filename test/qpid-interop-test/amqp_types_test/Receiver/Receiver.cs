@@ -1,11 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+//using System.Linq;
+//using System.Text;
+using System.Threading;
 using Amqp;
+using Amqp.Framing;
 using Amqp.Types;
-using System.Runtime.Serialization.Json;
+//using System.Runtime.Serialization.Json;
 using Newtonsoft.Json;
 
 
@@ -28,8 +29,6 @@ namespace Qpidit
             _expected = expected;
             _received = 0;
             _receivedValueList = "";
-            Console.WriteLine("Created Receiver. broker={0}, queue={1}, type={2}, expected={3}",
-                _brokerUrl, _queueName, _amqpType, _expected);
         }
 
         ~Receiver()
@@ -37,12 +36,55 @@ namespace Qpidit
 
         public string receivedValueList
         {
-            get { return _receivedValueList;  }
+            get { return _receivedValueList; }
+        }
+
+        public void messageCallback(ReceiverLink receiver, Message message)
+        {
+            // Received a message
         }
 
         public void run()
         {
-            _receivedValueList = "I have run and that's that!";
+            ManualResetEvent receiverAttached = new ManualResetEvent(false);
+            OnAttached onReceiverAttached = (l, a) =>
+            {
+                receiverAttached.Set();
+            };
+
+            Address address = new Address(string.Format("amqp://{0}", _brokerUrl));
+            Connection connection = new Connection(address);
+            Session session = new Session(connection);
+            ReceiverLink receiverlink = new ReceiverLink(session,
+                                                         "Lite-amqp-types-test-receiver",
+                                                         new Source() { Address = _queueName },
+                                                         onReceiverAttached);
+            if (receiverAttached.WaitOne(10000))
+            {
+                while (_received < _expected)
+                {
+                    Message message = receiverlink.Receive(10000);
+                    if (message != null)
+                    {
+                        // got one
+                        _received += 1;
+                        receiverlink.Accept(message);
+                        _receivedValueList = string.Format("Received {0} or {1} messages", _received, _expected);
+                    }
+                    else
+                    {
+                        throw new ApplicationException("Time out receiving message");
+                    }
+                }
+            }
+            else
+            {
+                throw new ApplicationException("Time out attaching to test queue");
+            }
+
+            receiverlink.Close();
+            session.Close();
+            connection.Close();
         }
     }
 
@@ -81,6 +123,7 @@ namespace Qpidit
 
                 var result = JsonConvert.SerializeObject(listOfInts);
                 Console.WriteLine("The list became: {0}", result);
+                // End HACK Alert
 
                 // create and run a receiver
                 Receiver receiver = new Qpidit.Receiver(args[0], args[1], args[2], UInt32.Parse(args[3]));
@@ -93,7 +136,7 @@ namespace Qpidit
             }
             catch (Exception e)
             {
-                Console.WriteLine("AmqpReceiver error: {0}.", e);
+                Console.Error.WriteLine("AmqpReceiver error: {0}.", e);
                 exitCode = 1;
             }
 
