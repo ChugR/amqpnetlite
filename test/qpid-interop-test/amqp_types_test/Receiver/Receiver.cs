@@ -78,10 +78,42 @@ namespace Qpidit
                         _qString = String.Format("0x{0:x}", (Int64)body);
                         break;
                     case "Single":
+                        byte[] sbytes = BitConverter.GetBytes((Single)body);
+                        _qType = "float";
+                        _qString = "0x";
+                        for (int i = 0; i< sbytes.Length; i++)
+                        {
+                            _qString += String.Format("{0:x2}", sbytes[i ^ 3]);
+                        }
                         break;
                     case "Double":
+                        byte[] dbytes = BitConverter.GetBytes((Double)body);
+                        _qType = "double";
+                        _qString = "0x";
+                        for (int i = 0; i < dbytes.Length; i++)
+                        {
+                            _qString += String.Format("{0:x2}", dbytes[i ^ 7]);
+                        }
                         break;
                     case "DateTime":
+                        const long epochTicks = 621355968000000000;
+                        byte[] dtbytes = BitConverter.GetBytes(
+                            (((DateTime)body).Ticks - epochTicks) / TimeSpan.TicksPerMillisecond);
+                        _qType = "timestamp";
+                        _qString = "0x";
+                        bool suppressLeading = true;
+                        for (int i = dtbytes.Length - 1; i >=0 ; i--)
+                        {
+                            if (suppressLeading && dtbytes[i] == 0)
+                            {
+                                // suppress this
+                            }
+                            else
+                            {
+                                suppressLeading = false;
+                                _qString += String.Format("{0:x2}", dtbytes[i]);
+                            }
+                        }
                         break;
                     case "Guid":
                         break;
