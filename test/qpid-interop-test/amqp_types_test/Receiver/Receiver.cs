@@ -39,9 +39,29 @@ namespace Qpidit
             get { return _receivedValueList; }
         }
 
+
+        public void messageAnalyze(Message message)
+        {
+            // HACK: this is research and not mission code
+            // Expose all facts about the message/message body
+            // that a curious client might want to see.
+
+            object body = message.Body;
+            if (body == null)
+            {
+                Console.WriteLine("The message body is NULL.");
+            }
+            else
+            {
+                Console.WriteLine("Message body type : {0}",
+                    body.GetType().Name);
+            }
+        }
+
         public void messageVerify(Message message)
         {
             // Verify that message body is of expected type
+            object bb = message.Body;
             object body = message.BodySection;
 
             var data = body as Data;
@@ -114,7 +134,7 @@ namespace Qpidit
                         // got one
                         _received += 1;
                         // receiverlink.Accept(message); HACK - don't ack so the message hangs around
-                        messageVerify(message);
+                        messageAnalyze(message);
                         _receivedValueList = string.Format("Received {0} of {1} messages", _received, _expected);
                     }
                     else
