@@ -12,6 +12,99 @@ using Newtonsoft.Json;
 
 namespace Qpidit
 {
+    class AnalyzedMessage
+    {
+        private Message _message;
+        private string _liteType;
+        private string _qType;
+        private string _qString;
+
+        public override string ToString()
+        {
+            return _qString;
+        }
+        
+        public AnalyzedMessage(Message message)
+        {
+            _message = message;
+
+            object body = message.Body;
+            if (body == null)
+            {
+                Console.WriteLine("AnalyzedMessage body type : null");
+                _liteType = "null";
+                _qType = "null";
+                _qString = "null";
+            }
+            else
+            {
+                _liteType = body.GetType().Name;
+                Console.WriteLine("AnalyzedMessage body type : {0}", _liteType);
+                switch (_liteType) {
+                    case "Boolean":
+                        _qType = "boolean";
+                        _qString = ((Boolean)body ? "True" : "False");
+                        break;
+                    case "Byte":
+                        _qType = "ubyte";
+                        _qString = String.Format("0x{0:x}", (Byte)body);
+                        break;
+                    case "UInt16":
+                        _qType = "ushort";
+                        _qString = String.Format("0x{0:x}", (UInt16)body);
+                        break;
+                    case "UInt32":
+                        _qType = "uint";
+                        _qString = String.Format("0x{0:x}", (UInt32)body);
+                        break;
+                    case "UInt64":
+                        _qType = "ulong";
+                        _qString = String.Format("0x{0:x}", (UInt64)body);
+                        break;
+                    case "SByte":
+                        _qType = "byte";
+                        _qString = String.Format("0x{0:x}", (SByte)body);
+                        break;
+                    case "Int16":
+                        _qType = "byte";
+                        _qString = String.Format("0x{0:x}", (Int16)body);
+                        break;
+                    case "Int32":
+                        _qType = "byte";
+                        _qString = String.Format("0x{0:x}", (Int32)body);
+                        break;
+                    case "Int64":
+                        _qType = "byte";
+                        _qString = String.Format("0x{0:x}", (Int64)body);
+                        break;
+                    case "Single":
+                        break;
+                    case "Double":
+                        break;
+                    case "DateTime":
+                        break;
+                    case "Guid":
+                        break;
+                    case "Byte[]":
+                        break;
+                    case "String":
+                        break;
+                    case "Symbol":
+                        break;
+                    case "List":
+                        break;
+                    case "Map":
+                        break;
+                }
+            }
+
+        }
+
+        public string LiteType {  get { return _liteType; } }
+        public string QpiditType {  get { return _qType; } }
+    }
+
+
     class Receiver
     {
         private string _brokerUrl;
@@ -39,24 +132,6 @@ namespace Qpidit
             get { return _receivedValueList; }
         }
 
-
-        public void messageAnalyze(Message message)
-        {
-            // HACK: this is research and not mission code
-            // Expose all facts about the message/message body
-            // that a curious client might want to see.
-
-            object body = message.Body;
-            if (body == null)
-            {
-                Console.WriteLine("The message body is NULL.");
-            }
-            else
-            {
-                Console.WriteLine("Message body type : {0}",
-                    body.GetType().Name);
-            }
-        }
 
         public void messageVerify(Message message)
         {
@@ -134,7 +209,8 @@ namespace Qpidit
                         // got one
                         _received += 1;
                         // receiverlink.Accept(message); HACK - don't ack so the message hangs around
-                        messageAnalyze(message);
+                        AnalyzedMessage am = new AnalyzedMessage(message);
+                        Console.WriteLine("{0} [\"{1}\"]", am.QpiditType, am);
                         _receivedValueList = string.Format("Received {0} of {1} messages", _received, _expected);
                     }
                     else
