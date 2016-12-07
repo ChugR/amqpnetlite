@@ -188,8 +188,9 @@ namespace Qpidit
                         _qString = mresult;
                         break;
                     default:
-                        string errString = String.Format("Unknown AMQP type: {0}", _liteType);
-                        throw new ApplicationException(errString);
+                        _qType = "unknown";
+                        _qString = String.Format("Unknown AMQP type: {0}", _liteType);
+                        throw new ApplicationException(_qString);
                 }
             }
         }
@@ -221,75 +222,16 @@ namespace Qpidit
         ~Receiver()
         { }
 
-        public string receivedValueList
+        public string ReceivedValueList
         {
             get { return _receivedValueList; }
         }
 
 
-        /// <summary>
-        /// Function to analyz
-        /// </summary>
-        /// <param name="message"></param>
-        public void messageVerify(Message message)
-        {
-            // Verify that message body is of expected type
-            object bb = message.Body;
-            object body = message.BodySection;
-
-            var data = body as Data;
-            if (data != null)
-            {
-                if (data.Buffer != null)
-                {
-                    Console.WriteLine("Data, data.Buffer: {1}", data.Buffer.Length);
-                }
-                else
-                {
-                    Console.WriteLine("Data, data.Binary: {1}", data.Binary.Length);
-                }
-            }
-
-            var value = body as AmqpValue;
-            if (value != null)
-            {
-                // It's a value
-                Console.WriteLine("value.GetType.Name: {0}", value.GetType().Name);
-
-                // Get the value's value
-                var valueValue = value.Value;
-                Console.WriteLine("value.Value.GetType.Name: {0}", valueValue.GetType().Name);
-
-                // Get the value's bytes
-                ByteBuffer valueBuffer = value.ValueBuffer;
-                valueBuffer.Reset();
-                Console.WriteLine("Starting byte (amqp encoding?): {0}",
-                    valueBuffer.Buffer[valueBuffer.WritePos]);
-
-                var b = value.Value as byte[];
-                if (b != null)
-                {
-                    Console.WriteLine("AmqpValue, value.Value as byte[]: {1}", b.Length);
-                }
-
-                var f = value.Value as ByteBuffer;
-                if (f != null)
-                {
-                    Console.WriteLine("AmqpValue, value.Value as ByteBuffer : {1}", f.Length);
-                }
-            }
-
-            Console.WriteLine("Body: {1}", body.ToString());
-        }
-
         public void run()
         {
             ManualResetEvent receiverAttached = new ManualResetEvent(false);
-            OnAttached onReceiverAttached = (l, a) =>
-            {
-                receiverAttached.Set();
-            };
-
+            OnAttached onReceiverAttached = (l, a) => { receiverAttached.Set(); };
             Address address = new Address(string.Format("amqp://{0}", _brokerUrl));
             Connection connection = new Connection(address);
             Session session = new Session(connection);
@@ -304,22 +246,30 @@ namespace Qpidit
                     Message message = receiverlink.Receive(10000);
                     if (message != null)
                     {
-                        // got one
                         _received += 1;
-                        // receiverlink.Accept(message); HACK - don't ack so the message hangs around
+                         receiverlink.Accept(message);
                         AnalyzedMessage am = new AnalyzedMessage(message);
-                        Console.WriteLine("{0} [{1}]", am.QpiditType, am);
-                        _receivedValueList = string.Format("Received {0} of {1} messages", _received, _expected);
+                        if (am.QpiditType != _amqpType)
+                        {
+                            throw new ApplicationException(string.Format
+                                ("Incorrect AMQP type found in message body: expected: {0}; found: {1}",
+                                _amqpType, am.QpiditType));
+                        }
+                        // Console.WriteLine("{0} [{1}]", am.QpiditType, am);
+                        if (_received > 1) _receivedValueList += ",";
+                        _receivedValueList += am;
                     }
                     else
                     {
-                        throw new ApplicationException(string.Format("Time out receiving message {0} of {1}", _received+1, _expected));
+                        throw new ApplicationException(string.Format(
+                            "Time out receiving message {0} of {1}", _received+1, _expected));
                     }
                 }
             }
             else
             {
-                throw new ApplicationException("Time out attaching to test queue");
+                throw new ApplicationException(string.Format(
+                    "Time out attaching to test queue {0}", _queueName));
             }
 
             receiverlink.Close();
@@ -336,26 +286,23 @@ namespace Qpidit
              * --- main ---
              * Args: 1: Broker address (ip-addr:port)
              *       2: Queue name
-             *       3: AMQP type
+             *       3: QPIDIT AMQP type name of expected message body values
              *       4: Expected number of test values to receive
              */
             if (args.Length != 4)
             {
-                throw new System.ArgumentException("Required argument count must be 4: brokerAddr queueName amqpType nValues");
+                throw new System.ArgumentException(
+                    "Required argument count must be 4: brokerAddr queueName amqpType nValues");
             }
-
             int exitCode = 0;
-
             try
             {
-                // create and run a receiver
-                Receiver receiver = new Qpidit.Receiver(args[0], args[1], args[2], UInt32.Parse(args[3]));
+                Receiver receiver = new Qpidit.Receiver(
+                    args[0], args[1], args[2], UInt32.Parse(args[3]));
                 receiver.run();
 
-                // Report result
                 Console.WriteLine(args[2]);
-                Console.WriteLine("{0}", receiver.receivedValueList);
-
+                Console.WriteLine("[{0}]", receiver.ReceivedValueList);
             }
             catch (Exception e)
             {
