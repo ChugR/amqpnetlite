@@ -23,7 +23,29 @@ namespace Qpidit
         {
             return _qString;
         }
-        
+
+
+        /// <summary>
+        /// Compute contents of byte array in reverse order.
+        /// </summary>
+        /// <param name="input">The byte array.</param>
+        /// <param name="suppressLeading0s">Flag controls suppression of leading zeros.</param>
+        /// <returns>Hexadecimal string</returns>
+        public string BytesRevdToString(byte[] input, bool suppressLeading0s = false)
+        {
+            string result = "";
+            for (int i = input.Length -1; i >= 0; i--)
+            {
+                if (! suppressLeading0s || input[i] != 0)
+                {
+                    suppressLeading0s = false;
+                    result += String.Format("{0:x2}", input[i]);
+                }
+            }
+            return result;
+        }
+
+
         public AnalyzedMessage(Message message)
         {
             _message = message;
@@ -80,40 +102,19 @@ namespace Qpidit
                     case "Single":
                         byte[] sbytes = BitConverter.GetBytes((Single)body);
                         _qType = "float";
-                        _qString = "0x";
-                        for (int i = 0; i< sbytes.Length; i++)
-                        {
-                            _qString += String.Format("{0:x2}", sbytes[i ^ 3]);
-                        }
+                        _qString = "0x" + BytesRevdToString(sbytes);
                         break;
                     case "Double":
                         byte[] dbytes = BitConverter.GetBytes((Double)body);
                         _qType = "double";
-                        _qString = "0x";
-                        for (int i = 0; i < dbytes.Length; i++)
-                        {
-                            _qString += String.Format("{0:x2}", dbytes[i ^ 7]);
-                        }
+                        _qString = "0x" + BytesRevdToString(dbytes);
                         break;
                     case "DateTime":
                         const long epochTicks = 621355968000000000;
                         byte[] dtbytes = BitConverter.GetBytes(
                             (((DateTime)body).Ticks - epochTicks) / TimeSpan.TicksPerMillisecond);
                         _qType = "timestamp";
-                        _qString = "0x";
-                        bool suppressLeading = true;
-                        for (int i = dtbytes.Length - 1; i >=0 ; i--)
-                        {
-                            if (suppressLeading && dtbytes[i] == 0)
-                            {
-                                // suppress this
-                            }
-                            else
-                            {
-                                suppressLeading = false;
-                                _qString += String.Format("{0:x2}", dtbytes[i]);
-                            }
-                        }
+                        _qString = "0x" + BytesRevdToString(dtbytes, true);
                         break;
                     case "Guid":
                         break;
