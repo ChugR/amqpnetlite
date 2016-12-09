@@ -388,13 +388,13 @@ namespace Qpidit
                         MessageValue mv = new MessageValue(message.Body);
                         mv.Decode();
 
-                        //if (mv.QpiditTypeName != amqpType)
-                        //{
-                        //    throw new ApplicationException(string.Format
-                        //        ("Incorrect AMQP type found in message body: expected: {0}; found: {1}",
-                        //        amqpType, mv.QpiditTypeName));
-                        //}
-                        //Console.WriteLine("{0} [{1}]", mv.QpiditTypeName, mv.ToString());
+                        if (mv.QpiditTypeName != amqpType)
+                        {
+                            throw new ApplicationException(string.Format
+                                ("Incorrect AMQP type found in message body: expected: {0}; found: {1}",
+                                amqpType, mv.QpiditTypeName));
+                        }
+                        Console.WriteLine("{0} [{1}]", mv.QpiditTypeName, mv.ToString());
                         receivedMessageValues.Add(mv);
                     }
                     else
