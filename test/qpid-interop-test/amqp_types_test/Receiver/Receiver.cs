@@ -26,7 +26,7 @@ using System.Threading;
 using Amqp;
 using Amqp.Framing;
 using Amqp.Types;
-//using System.Runtime.Serialization.Json;
+using System.Web.Script.Serialization;
 //using Newtonsoft.Json;
 
 namespace Qpidit
