@@ -33,7 +33,8 @@ namespace Qpidit
 {
 
     /// <summary>
-    /// MessageValue holds a typed AMQP.Net Lite message body AmqpValue.
+    /// MessageValue holds a typed AMQP.Net Lite message body AmqpValue,
+    /// decodes it, and returns the QpidIT string that represents the message.
     /// Complex values List and Map are constructed recursively.
     /// Remaining singleton values like int or long are held directly as strings.
     /// </summary>
@@ -394,7 +395,7 @@ namespace Qpidit
                                 ("Incorrect AMQP type found in message body: expected: {0}; found: {1}",
                                 amqpType, mv.QpiditTypeName));
                         }
-                        Console.WriteLine("{0} [{1}]", mv.QpiditTypeName, mv.ToString());
+                        //Console.WriteLine("{0} [{1}]", mv.QpiditTypeName, mv.ToString());
                         receivedMessageValues.Add(mv);
                     }
                     else
