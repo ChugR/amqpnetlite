@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Text;
 using System.Threading;
 using System.Web.Script.Serialization;
 using Amqp;
@@ -173,14 +174,33 @@ namespace Qpidit
                     valueDirect = dbl;
                     break;
                 case "timestamp":
+                    // epochTicks is the number of 100uSec ticks between 01/01/0001
+                    // and 01/01/1970. Used to adjust between DateTime and unix epoch.
+                    const long epochTicks = 621355968000000000;
+                    value = StripLeading0x((string)baseValue);
+                    Int64 dtticks = Int64.Parse(value, System.Globalization.NumberStyles.AllowHexSpecifier);
+                    dtticks *= TimeSpan.TicksPerMillisecond;
+                    dtticks += epochTicks;
+                    DateTime dt = new DateTime(dtticks, DateTimeKind.Utc);
+                    valueDirect = dt;
                     break;
                 case "uuid":
+                    value = (string)baseValue;
+                    Guid guid = new Guid(value);
+                    valueDirect = guid;
                     break;
                 case "binary":
+                    // TODO: fix this
+                    value = (string)baseValue;
+                    byte[] binval = Encoding.ASCII.GetBytes(value);
+                    valueDirect = binval;
                     break;
                 case "string":
+                    valueDirect = (string)baseValue;
                     break;
                 case "symbol":
+                    Symbol sym = new Symbol((string)baseValue);
+                    valueDirect = sym;
                     break;
                 case "list":
                     break;
