@@ -26,13 +26,11 @@ namespace Qpidit
         // simple objects completely encoded
         private object valueDirect;
 
-        // Lists
-        private List<MessageValue> valueList;
+        // List
+        private Amqp.Types.List valueList;
 
-        // Maps
-        // Kept as lists to avoid dictionary reordering complications.
-        private List<MessageValue> valueMapKeys;
-        private List<MessageValue> valueMapValues;
+        // Map
+        private Amqp.Types.Map valueMap;
         
         /// <summary>
         /// Constructor
@@ -46,23 +44,113 @@ namespace Qpidit
             encoded = false;
             valueDirect = null;
             valueList = null;
-            valueMapKeys = null;
-            valueMapValues = null;
-
+            valueMap = null;
         }
 
 
-        public Message ToMessage()
+        /// <summary>
+        /// Create a MessageValue without knowing beforehand what
+        /// type of system object is being handled.
+        /// </summary>
+        /// <param name="obj"></param>
+        /// <returns></returns>
+        public static MessageValue CreateAutoType(object obj)
+        {
+            return new Qpidit.MessageValue(QpiditTypeOf(obj), obj);
+        }
+
+
+        public Object ToObject()
         {
             if (!encoded)
                 Encode();
 
             if (valueDirect != null)
             {
-                Message m = new Message(valueDirect);
-                return m;
+                return valueDirect;
             }
-            throw new ApplicationException("Message not encoded");
+            if (valueList != null)
+            {
+                return valueList;
+            }
+            if (valueMap != null)
+            {
+                return valueMap;
+            }
+            throw new ApplicationException("Sender.MessageValue.ToObject: Message not encoded properly");
+        }
+
+
+        public Message ToMessage()
+        {
+            return new Message(this.ToObject());
+        }
+
+        public static string QpiditTypeOf(object obj)
+        {
+            string typename = obj.GetType().Name;
+            string qpiditType = null;
+            switch (typename)
+            {
+                case "Boolean":
+                    qpiditType = "boolean";
+                    break;
+                case "Byte":
+                    qpiditType = "ubyte";
+                    break;
+                case "UInt16":
+                    qpiditType = "ushort";
+                    break;
+                case "UInt32":
+                    qpiditType = "uint";
+                    break;
+                case "UInt64":
+                    qpiditType = "ulong";
+                    break;
+                case "SByte":
+                    qpiditType = "byte";
+                    break;
+                case "Int16":
+                    qpiditType = "short";
+                    break;
+                case "Int32":
+                    qpiditType = "int";
+                    break;
+                case "Int64":
+                    qpiditType = "long";
+                    break;
+                case "Single":
+                    qpiditType = "float";
+                    break;
+                case "Double":
+                    qpiditType = "double";
+                    break;
+                case "DateTime":
+                    qpiditType = "timestamp";
+                    break;
+                case "Guid":
+                    qpiditType = "uuid";
+                    break;
+                case "Byte[]":
+                    qpiditType = "binary";
+                    break;
+                case "String":
+                    qpiditType = "string";
+                    break;
+                case "Symbol":
+                    qpiditType = "symbol";
+                    break;
+                case "Array":
+                    qpiditType = "list";
+                    break;
+                case "Dictionary":
+                    qpiditType = "map";
+                    break;
+                default:
+                    throw new ApplicationException(String.Format(
+                        "Can not translate system type {0} to a QpidIT type", typename));
+            }
+            return qpiditType;
         }
 
 
@@ -102,113 +190,156 @@ namespace Qpidit
         /// </summary>
         public void Encode()
         {
-            string value;
-            UInt64 valueUInt64;
-            Int64 valueInt64;
-
-            switch (baseType)
+            if (baseValue is Array)
             {
-                case "boolean":
-                    value = (string)baseValue;
-                    bool mybool = String.Equals(value, "true", StringComparison.OrdinalIgnoreCase);
-                    valueDirect = mybool;
-                    break;
-                case "ubyte":
-                    value = (string)baseValue;
-                    valueUInt64 = EncodeUInt(value);
-                    Byte mybyte = (Byte)(valueUInt64 & 0xff);
-                    valueDirect = mybyte;
-                    break;
-                case "ushort":
-                    value = (string)baseValue;
-                    valueUInt64 = EncodeUInt(value);
-                    UInt16 myuint16 = (UInt16)(valueUInt64 & 0xffff);
-                    valueDirect = myuint16;
-                    break;
-                case "uint":
-                    value = (string)baseValue;
-                    valueUInt64 = EncodeUInt(value);
-                    UInt32 myuint32 = (UInt32)(valueUInt64 & 0xffffffff);
-                    valueDirect = myuint32;
-                    break;
-                case "ulong":
-                    value = (string)baseValue;
-                    valueUInt64 = EncodeUInt(value);
-                    valueDirect = valueUInt64;
-                    break;
-                case "byte":
-                    value = (string)baseValue;
-                    valueInt64 = EncodeInt(value);
-                    SByte mysbyte = (SByte)(valueInt64 & 0xff);
-                    valueDirect = mysbyte;
-                    break;
-                case "short":
-                    value = (string)baseValue;
-                    valueInt64 = EncodeInt(value);
-                    Int16 myint16 = (Int16)(valueInt64 & 0xffff);
-                    valueDirect = myint16;
-                    break;
-                case "int":
-                    value = (string)baseValue;
-                    valueInt64 = EncodeInt(value);
-                    Int32 myint32 = (Int32)(valueInt64 & 0xffffffff);
-                    valueDirect = myint32;
-                    break;
-                case "long":
-                    value = (string)baseValue;
-                    valueInt64 = EncodeInt(value);
-                    valueDirect = valueInt64;
-                    break;
-                case "float":
-                    value = StripLeading0x((string)baseValue);
-                    UInt32 num32 = UInt32.Parse(value, System.Globalization.NumberStyles.AllowHexSpecifier);
-                    byte[] floatVals = BitConverter.GetBytes(num32);
-                    float flt = BitConverter.ToSingle(floatVals, 0);
-                    valueDirect = flt;
-                    break;
-                case "double":
-                    value = StripLeading0x((string)baseValue);
-                    UInt64 num64 = UInt64.Parse(value, System.Globalization.NumberStyles.AllowHexSpecifier);
-                    byte[] doubleVals = BitConverter.GetBytes(num64);
-                    double dbl = BitConverter.ToDouble (doubleVals, 0);
-                    valueDirect = dbl;
-                    break;
-                case "timestamp":
-                    // epochTicks is the number of 100uSec ticks between 01/01/0001
-                    // and 01/01/1970. Used to adjust between DateTime and unix epoch.
-                    const long epochTicks = 621355968000000000;
-                    value = StripLeading0x((string)baseValue);
-                    Int64 dtticks = Int64.Parse(value, System.Globalization.NumberStyles.AllowHexSpecifier);
-                    dtticks *= TimeSpan.TicksPerMillisecond;
-                    dtticks += epochTicks;
-                    DateTime dt = new DateTime(dtticks, DateTimeKind.Utc);
-                    valueDirect = dt;
-                    break;
-                case "uuid":
-                    value = (string)baseValue;
-                    Guid guid = new Guid(value);
-                    valueDirect = guid;
-                    break;
-                case "binary":
-                    // TODO: fix this
-                    value = (string)baseValue;
-                    byte[] binval = Encoding.ASCII.GetBytes(value);
-                    valueDirect = binval;
-                    break;
-                case "string":
-                    valueDirect = (string)baseValue;
-                    break;
-                case "symbol":
-                    Symbol sym = new Symbol((string)baseValue);
-                    valueDirect = sym;
-                    break;
-                case "list":
-                    break;
-                case "map":
-                    break;
-                default:
+                // List
+                if (! String.Equals(baseType, "list", StringComparison.OrdinalIgnoreCase))
+                {
                     throw new ApplicationException(String.Format(
-                        "Sender can not encode base type: {0}", baseType));
+                        "Sender asked to encode a {0} but received a list: {1}", baseType, baseValue.ToString()));
+                }
+                valueList = new Amqp.Types.List();
+                foreach (object item in (Array)baseValue)
+                {
+                    MessageValue itemValue = MessageValue.CreateAutoType(item);
+                    itemValue.Encode();
+                    valueList.Add(itemValue.ToObject());
+                }
+            }
+            else if (baseValue is Dictionary<string, object>)
+            {
+                // Map
+                if (!String.Equals(baseType, "map", StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new ApplicationException(String.Format(
+                        "Sender asked to encode a {0} but received a map: {1}", baseType, baseValue.ToString()));
+                }
+                valueMap = new Amqp.Types.Map();
+                Dictionary<string, object> myDict = new Dictionary<string, object>();
+                myDict = (Dictionary<string, object>)baseValue;
+                foreach (var key in myDict.Keys)
+                {
+                    MessageValue itemValue = MessageValue.CreateAutoType(myDict[key]);
+                    valueMap[key] = itemValue.ToObject();
+                }
+            }
+            else if (baseValue is String)
+            {
+                string value;
+                UInt64 valueUInt64;
+                Int64 valueInt64;
+
+                switch (baseType)
+                {
+                    case "boolean":
+                        value = (string)baseValue;
+                        bool mybool = String.Equals(value, "true", StringComparison.OrdinalIgnoreCase);
+                        valueDirect = mybool;
+                        break;
+                    case "ubyte":
+                        value = (string)baseValue;
+                        valueUInt64 = EncodeUInt(value);
+                        Byte mybyte = (Byte)(valueUInt64 & 0xff);
+                        valueDirect = mybyte;
+                        break;
+                    case "ushort":
+                        value = (string)baseValue;
+                        valueUInt64 = EncodeUInt(value);
+                        UInt16 myuint16 = (UInt16)(valueUInt64 & 0xffff);
+                        valueDirect = myuint16;
+                        break;
+                    case "uint":
+                        value = (string)baseValue;
+                        valueUInt64 = EncodeUInt(value);
+                        UInt32 myuint32 = (UInt32)(valueUInt64 & 0xffffffff);
+                        valueDirect = myuint32;
+                        break;
+                    case "ulong":
+                        value = (string)baseValue;
+                        valueUInt64 = EncodeUInt(value);
+                        valueDirect = valueUInt64;
+                        break;
+                    case "byte":
+                        value = (string)baseValue;
+                        valueInt64 = EncodeInt(value);
+                        SByte mysbyte = (SByte)(valueInt64 & 0xff);
+                        valueDirect = mysbyte;
+                        break;
+                    case "short":
+                        value = (string)baseValue;
+                        valueInt64 = EncodeInt(value);
+                        Int16 myint16 = (Int16)(valueInt64 & 0xffff);
+                        valueDirect = myint16;
+                        break;
+                    case "int":
+                        value = (string)baseValue;
+                        valueInt64 = EncodeInt(value);
+                        Int32 myint32 = (Int32)(valueInt64 & 0xffffffff);
+                        valueDirect = myint32;
+                        break;
+                    case "long":
+                        value = (string)baseValue;
+                        valueInt64 = EncodeInt(value);
+                        valueDirect = valueInt64;
+                        break;
+                    case "float":
+                        value = StripLeading0x((string)baseValue);
+                        UInt32 num32 = UInt32.Parse(value, System.Globalization.NumberStyles.AllowHexSpecifier);
+                        byte[] floatVals = BitConverter.GetBytes(num32);
+                        float flt = BitConverter.ToSingle(floatVals, 0);
+                        valueDirect = flt;
+                        break;
+                    case "double":
+                        value = StripLeading0x((string)baseValue);
+                        UInt64 num64 = UInt64.Parse(value, System.Globalization.NumberStyles.AllowHexSpecifier);
+                        byte[] doubleVals = BitConverter.GetBytes(num64);
+                        double dbl = BitConverter.ToDouble(doubleVals, 0);
+                        valueDirect = dbl;
+                        break;
+                    case "timestamp":
+                        // epochTicks is the number of 100uSec ticks between 01/01/0001
+                        // and 01/01/1970. Used to adjust between DateTime and unix epoch.
+                        const long epochTicks = 621355968000000000;
+                        value = StripLeading0x((string)baseValue);
+                        Int64 dtticks = Int64.Parse(value, System.Globalization.NumberStyles.AllowHexSpecifier);
+                        dtticks *= TimeSpan.TicksPerMillisecond;
+                        dtticks += epochTicks;
+                        DateTime dt = new DateTime(dtticks, DateTimeKind.Utc);
+                        valueDirect = dt;
+                        break;
+                    case "uuid":
+                        value = (string)baseValue;
+                        Guid guid = new Guid(value);
+                        valueDirect = guid;
+                        break;
+                    case "binary":
+                        // TODO: fix this
+                        value = (string)baseValue;
+                        byte[] binval = Encoding.ASCII.GetBytes(value);
+                        valueDirect = binval;
+                        break;
+                    case "string":
+                        valueDirect = (string)baseValue;
+                        break;
+                    case "symbol":
+                        Symbol sym = new Symbol((string)baseValue);
+                        valueDirect = sym;
+                        break;
+                    case "list":
+                        throw new ApplicationException(String.Format(
+                            "Sender asked to encode a list but received a string: {0}", baseValue));
+                    case "map":
+                        throw new ApplicationException(String.Format(
+                            "Sender asked to encode a map but received a string: {0}", baseValue));
+                    default:
+                        throw new ApplicationException(String.Format(
+                            "Sender can not encode base type: {0}", baseType));
+                }
+            }
+            else
+            {
+                throw new ApplicationException(String.Format(
+                    "Sender can not encode object type {0}", baseValue.GetType().Name));
             }
             encoded = true;
         }
@@ -232,52 +363,6 @@ namespace Qpidit
         ~Sender()
         { }
 
-        /// <summary>
-        /// Generate a message 
-        /// </summary>
-        /// <param name="amqpType">QpidIt data item type</param>
-        /// <param name="messageObject">Deserialized json message object</param>
-        /// <returns></returns>
-        public Message GenerateMessage(string amqpType, object messageObject)
-        {
-            Message message = null;
-            if (messageObject is Array)
-            {
-                throw new ApplicationException("Lists are TBD");
-                //int entry = 0;
-                //Console.WriteLine("{0} obj is array with {1} entries", level, ((Array)obj).Length);
-                //foreach (object subobj in (Array)messageObject)
-                //{
-                //    Console.WriteLine("AS{0} entry {1}", level + 1, entry++);
-                //    decodeThis(subobj, level);
-                //}
-            }
-            else if (messageObject is Dictionary<string, object>)
-            {
-                throw new ApplicationException("Maps are TBD");
-                //Dictionary<string, object> myDict = new Dictionary<string, object>();
-                //myDict = (Dictionary<string, object>)messageObject;
-                //Console.WriteLine("{0} obj is dictionary with {1} entries", level, myDict.Count);
-                //int entry = 0;
-                //foreach (var key in myDict.Keys)
-                //{
-                //    Console.WriteLine("{0} entry {1} key = {2}, value = ", level + 1, entry++, key);
-                //    decodeThis(myDict[key], level);
-                //}
-            }
-            else if (messageObject is String)
-            {
-                MessageValue mv = new MessageValue(amqpType, messageObject);
-                mv.Encode();
-                message = mv.ToMessage();
-            }
-            else
-            {
-                throw new ApplicationException("Could not decode message object");
-            }
-            return message;
-        }
-
 
         public void run()
         {
@@ -293,7 +378,9 @@ namespace Qpidit
             // Generate messages
             foreach (object itMsg in (Array)itMsgs)
             {
-                messagesToSend.Add( GenerateMessage(amqpType, itMsg) );
+                MessageValue mv = new MessageValue(amqpType, itMsg);
+                mv.Encode();
+                messagesToSend.Add(mv.ToMessage());
             }
 
             // Send the messages
@@ -353,7 +440,7 @@ namespace Qpidit
             }
             catch (Exception e)
             {
-                Console.Error.WriteLine("AmqpReceiver error: {0}.", e);
+                Console.Error.WriteLine("AmqpSender error: {0}.", e);
                 exitCode = 1;
             }
 
