@@ -1,4 +1,25 @@
-﻿using System;
+﻿/*
+ *
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ *
+ */
+
+using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Threading;
@@ -21,16 +42,13 @@ namespace Qpidit
         // Original type and json object
         private string baseType;
         private object baseValue;
+
+        // has Encode been called?
         private Boolean encoded;
 
-        // simple objects completely encoded
+        // Simple objects completely encoded
+        // List and Map defined recursively
         private object valueDirect;
-
-        // List
-        private Amqp.Types.List valueList;
-
-        // Map
-        private Amqp.Types.Map valueMap;
         
         /// <summary>
         /// Constructor
@@ -43,14 +61,16 @@ namespace Qpidit
             baseValue = value;
             encoded = false;
             valueDirect = null;
-            valueList = null;
-            valueMap = null;
         }
 
 
         /// <summary>
         /// Create a MessageValue without knowing beforehand what
         /// type of system object is being handled.
+        /// * Objects created in the list from the command line have a
+        ///   known type and are created via the constructor.
+        /// * Objects created inside List and Map have only string
+        ///   type externally but need an actual type to be figured out.
         /// </summary>
         /// <param name="obj"></param>
         /// <returns></returns>
@@ -60,6 +80,11 @@ namespace Qpidit
         }
 
 
+        /// <summary>
+        /// Return the native object that represents the encoded
+        /// Amqp value.
+        /// </summary>
+        /// <returns></returns>
         public Object ToObject()
         {
             if (!encoded)
@@ -69,23 +94,25 @@ namespace Qpidit
             {
                 return valueDirect;
             }
-            if (valueList != null)
-            {
-                return valueList;
-            }
-            if (valueMap != null)
-            {
-                return valueMap;
-            }
             throw new ApplicationException("Sender.MessageValue.ToObject: Message not encoded properly");
         }
 
 
+        /// <summary>
+        /// Return the Amqp Message that holds this value.
+        /// </summary>
+        /// <returns></returns>
         public Message ToMessage()
         {
             return new Message(this.ToObject());
         }
 
+
+        /// <summary>
+        /// Get an object's QPIDIT type
+        /// </summary>
+        /// <param name="obj">a .NET object</param>
+        /// <returns>QpidIT type name</returns>
         public static string QpiditTypeOf(object obj)
         {
             string typename = obj.GetType().Name;
@@ -186,7 +213,7 @@ namespace Qpidit
 
 
         /// <summary>
-        /// Gnerate the object used to create a message
+        /// Generate the object used to create a message
         /// </summary>
         public void Encode()
         {
@@ -198,12 +225,12 @@ namespace Qpidit
                     throw new ApplicationException(String.Format(
                         "Sender asked to encode a {0} but received a list: {1}", baseType, baseValue.ToString()));
                 }
-                valueList = new Amqp.Types.List();
+                valueDirect = new Amqp.Types.List();
                 foreach (object item in (Array)baseValue)
                 {
                     MessageValue itemValue = MessageValue.CreateAutoType(item);
                     itemValue.Encode();
-                    valueList.Add(itemValue.ToObject());
+                    ((Amqp.Types.List)valueDirect).Add(itemValue.ToObject());
                 }
             }
             else if (baseValue is Dictionary<string, object>)
@@ -214,13 +241,13 @@ namespace Qpidit
                     throw new ApplicationException(String.Format(
                         "Sender asked to encode a {0} but received a map: {1}", baseType, baseValue.ToString()));
                 }
-                valueMap = new Amqp.Types.Map();
+                valueDirect = new Amqp.Types.Map();
                 Dictionary<string, object> myDict = new Dictionary<string, object>();
                 myDict = (Dictionary<string, object>)baseValue;
                 foreach (var key in myDict.Keys)
                 {
                     MessageValue itemValue = MessageValue.CreateAutoType(myDict[key]);
-                    valueMap[key] = itemValue.ToObject();
+                    ((Amqp.Types.Map)valueDirect)[key] = itemValue.ToObject();
                 }
             }
             else if (baseValue is String)
