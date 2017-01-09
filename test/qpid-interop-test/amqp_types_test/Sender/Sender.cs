@@ -404,12 +404,9 @@ namespace Qpidit
             // Deserialize the json message list
             JavaScriptSerializer jss = new JavaScriptSerializer();
             var itMsgs = jss.Deserialize<dynamic>(jsonMessages);
-            if (!(itMsgs is Array))
-                throw new ApplicationException(String.Format(
-                    "Messages are not formatted as a json list: {0}", jsonMessages));
 
             // Generate messages
-            foreach (object itMsg in (Array)itMsgs)
+            foreach (object itMsg in itMsgs)
             {
                 MessageValue mv = new MessageValue(amqpType, itMsg);
                 mv.Encode();
