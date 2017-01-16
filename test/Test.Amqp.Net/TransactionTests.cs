@@ -15,6 +15,7 @@
 //  limitations under the License.
 //  ------------------------------------------------------------------------------------
 
+using System;
 using System.Threading;
 using System.Threading.Tasks;
 using Amqp;
@@ -32,6 +33,10 @@ namespace Test.Amqp
         [ClassInitialize]
         public static void Initialize(TestContext context)
         {
+            Connection.DisableServerCertValidation = true;
+            // uncomment the following to write frame traces
+            Trace.TraceLevel = TraceLevel.Frame;
+            Trace.TraceListener = (f, a) => System.Diagnostics.Trace.WriteLine(DateTime.Now.ToString("[hh:mm:ss.fff]") + " " + string.Format(f, a));
         }
 
         // if the project is targeted 4.5.1, TransactionScope can be created with
