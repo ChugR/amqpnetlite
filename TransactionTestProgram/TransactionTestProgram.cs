@@ -250,15 +250,12 @@ namespace TransactionTestProgram
 
             // at this point, the queue should have zero messages.
             // If there are messages, it is a bug in the broker.
-            if (!testpass)
+            // Try draining the queue and reporting the
+            // message ids of the stuff left over.
+            if (DrainTarget(addr, target))
             {
-                // Test failed. Try draining the queue and reporting the
-                // message ids of the stuff left over.
-                if (DrainTarget(addr, target))
-                {
-                    log("Messages left in broker at end of test.");
-                    testpass = false;
-                }
+                log("Messages left in broker at end of test.");
+                testpass = false;
             }
 
             log(testName + " exiting with status " + (testpass ? "PASS" : "FAIL"));
@@ -338,10 +335,10 @@ namespace TransactionTestProgram
             //   d:\Users\crolke\git\amqpnetlite\bin\Debug>TestAmqpBroker\TestAmqpBroker.exe amqp://localhost:5672 /queues:q1
             //   Test broker could run locally but then there's no wireshark trace. So run it remotely.
             //
-            // Address address = new Address("amqp://mrg-win-1.ml3.eng.bos.redhat.com:5672");    // 10.19.176.108
+            Address address = new Address("amqp://mrg-win-1.ml3.eng.bos.redhat.com:5672");    // 10.19.176.108
 
             // some laptop running ER14. User:admin, password:password, queue:q1
-            Address address = new Address("amqp://admin:password@10.10.58.144:5672");
+            // Address address = new Address("amqp://admin:password@10.10.58.144:5672");
 
             if (args.Length > 0)
             {
@@ -354,7 +351,6 @@ namespace TransactionTestProgram
             }
 
             Connection.DisableServerCertValidation = true;
-            // uncomment the following to write frame traces
             Trace.TraceLevel = TraceLevel.Frame | TraceLevel.Verbose | TraceLevel.Output;
             Trace.TraceListener = (f, a) => System.Diagnostics.Trace.WriteLine(DateTime.Now.ToString("[hh:mm:ss.fff]") + " " + string.Format(f, a));
 
