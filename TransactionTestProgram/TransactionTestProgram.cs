@@ -13,26 +13,66 @@ namespace TransactionTestProgram
 {
     class Tests
     {
-        public void log(string what)
+        public void log(string what, bool optionalPadding = false)
         {
-            System.Diagnostics.Trace.WriteLine(DateTime.Now.ToString("[hh:mm:ss.fff]") + " " + what);
-            //Console.Error.WriteLine(DateTime.Now.ToString("[hh:mm:ss.fff]") + " " + what);
+            if (optionalPadding)
+                System.Diagnostics.Trace.WriteLine("");
+            System.Diagnostics.Trace.WriteLine(what);
+            if (optionalPadding)
+                System.Diagnostics.Trace.WriteLine("");
         }
 
+
+        /// <summary>
+        /// Test if queue is empty; if not then drain it.
+        /// Uses 1 second timeout.
+        /// </summary>
+        /// <param name="addr"></param>
+        /// <param name="target"></param>
+        /// <returns>True if any messages drained else False</returns>
+        public bool DrainTarget(Address addr, string target)
+        {
+            bool result = false;
+            Connection connection = new Connection(addr);
+            Session session = new Session(connection);
+            ReceiverLink rcvr = new ReceiverLink(session, "DrainTarget", target);
+
+            Message leftover = rcvr.Receive(1000);
+            while (leftover != null)
+            {
+                log("DIAG: Drained leftover message with Id: " + leftover.Properties.MessageId);
+                rcvr.Accept(leftover);
+                leftover = rcvr.Receive(1000);
+                result = true;
+            }
+            rcvr.Close();
+            session.Close();
+            connection.Close();
+            return result;
+        }
+
+
+        /// <summary>
+        /// TransactedPosting
+        /// </summary>
+        /// <param name="addr"></param>
+        /// <param name="target"></param>
         public void TransactedPosting(Address addr, string target)
         {
             string testName = "TransactedPosting";
             int nMsgs = 5;
             Boolean testpass = true;
 
+            DrainTarget(addr, target); 
+
             Connection connection = new Connection(addr);
             Session session = new Session(connection);
             SenderLink sender = new SenderLink(session, "sender-" + testName, target);
 
             // commit
-            log(testName);
-            log(testName + ": creating transaction scope for Complete set");
-            log(testName);
+            log(testName, true);
+            log("nMsgs= " + nMsgs);
+            log("Creating transaction scope");
             using (var ts = new TransactionScope())
             {
                 for (int i = 0; i < nMsgs; i++)
@@ -42,12 +82,12 @@ namespace TransactionTestProgram
                     message.Properties = new Properties() { MessageId = "commit" + i, GroupId = testName };
                     sender.Send(message);
                 }
-                log("Transaction scope Complete()");
+                log("Calling scope Complete()");
                 ts.Complete();
             }
 
             // rollback
-            log(testName + ": creating transaction scope for Rollback set");
+            log("Creating transaction scope");
             using (var ts = new TransactionScope())
             {
                 for (int i = nMsgs; i < nMsgs * 2; i++)
@@ -61,7 +101,7 @@ namespace TransactionTestProgram
             }
 
             // commit
-            log(testName + ": creating txn scope for 2nd Complete set");
+            log("Creating transaction scope");
             using (var ts = new TransactionScope())
             {
                 for (int i = 0; i < nMsgs; i++)
@@ -71,11 +111,11 @@ namespace TransactionTestProgram
                     message.Properties = new Properties() { MessageId = "commit" + i, GroupId = testName };
                     sender.Send(message);
                 }
-                log("Transaction scope Complete()");
+                log("Calling scope Complete()");
                 ts.Complete();
             }
 
-            log("Receiving two blocks of messages");
+            log("Receiving messages that should have been accepted under Txn scope");
             ReceiverLink receiver = new ReceiverLink(session, "receiver-" + testName, target);
             for (int i = 0; i < nMsgs * 2; i++)
             {
@@ -84,13 +124,19 @@ namespace TransactionTestProgram
                 receiver.Accept(message);
                 if (!message.Properties.MessageId.StartsWith("commit"))
                 {
-                    Console.Error.WriteLine("MessageId does not start with 'commit'");
+                    log("MessageId does not start with 'commit' : " + message.Properties.MessageId);
                     testpass = false;
                 }
             }
+            connection.Close();
+
+            if (DrainTarget(addr, target))
+            {
+                log("Messages left in broker at end of test.");
+                testpass = false;
+            }
 
             log(testName + " exiting with status " + (testpass ? "PASS" : "FAIL"));
-            connection.Close();
         }
 
         public void TransactedRetiring(Address addr, string target)
@@ -99,14 +145,16 @@ namespace TransactionTestProgram
             int nMsgs = 10;
             bool testpass = true;
 
+            DrainTarget(addr, target);
+
             Connection connection = new Connection(addr);
             Session session = new Session(connection);
             SenderLink sender = new SenderLink(session, "sender-" + testName, target);
 
             // send one extra for validation
-            log(testName);
-            log(testName + " Send N+1 with no transaction scope");
-            log(testName);
+            log(testName, true);
+            log("nMsgs= " + nMsgs);
+            log("Send N+1 with no transaction scope", true);
             for (int i = 0; i < nMsgs + 1; i++)
             {
                 log("Sending message with Id msg" + i);
@@ -117,22 +165,20 @@ namespace TransactionTestProgram
 
             ReceiverLink receiver = new ReceiverLink(session, "receiver-" + testName, target);
             Message[] messages = new Message[nMsgs];
-            log("");
-            log("Receive N messages but don't accept any");
-            log("");
+            log("Receive N messages but don't accept any", true);
             for (int i = 0; i < nMsgs; i++)
             {
                 messages[i] = receiver.Receive();
-                Trace.WriteLine(TraceLevel.Information, "receive: {0}", messages[i].Properties.MessageId);
+                log("Received: " + messages[i].Properties.MessageId);
             }
 
-            // commit harf
+            // commit half
             log("Create txn scope and accept half the messages");
             using (var ts = new TransactionScope())
             {
                 for (int i = 0; i < nMsgs / 2; i++)
                 {
-                    log("Accepting messageId: " + messages[i].Properties.MessageId);
+                    log("Accepting to-be-committed messageId: " + messages[i].Properties.MessageId);
                     receiver.Accept(messages[i]);
                 }
                 log("Txn scope complete");
@@ -148,7 +194,7 @@ namespace TransactionTestProgram
             {
                 for (int i = nMsgs / 2; i < nMsgs; i++)
                 {
-                    log("Accepting messageId: " + messages[i].Properties.MessageId);
+                    log("Accepting to-be-rolled-back messageId: " + messages[i].Properties.MessageId);
                     receiver.Accept(messages[i]);
                 }
                 log("Close txn scope without calling complete");
@@ -174,14 +220,14 @@ namespace TransactionTestProgram
             {
                 for (int i = nMsgs / 2; i < nMsgs; i++)
                 {
-                    log("Accepting messageId " + messages[i].Properties.MessageId);
+                    log("Accepting to-be-committed messageId " + messages[i].Properties.MessageId);
                     receiver.Accept(messages[i]);
                 }
-                log("Txn Complete()");
+                log("Txn scope Complete()");
                 ts.Complete();
             }
 
-            // only the last message is left
+            // only the 'extra' message is left
             {
                 log("Receive last message again");
                 Message message = receiver.Receive();
@@ -191,21 +237,40 @@ namespace TransactionTestProgram
                         " does not match expected msg" + nMsgs);
                     testpass = false;
                 }
-                log("Acccept last message");
-                receiver.Accept(message);
+                else
+                {
+                    log("Acccept last message");
+                    receiver.Accept(message);
+                }
             }
+            receiver.Close();
+            sender.Close();
+            session.Close();
+            connection.Close();
 
             // at this point, the queue should have zero messages.
             // If there are messages, it is a bug in the broker.
+            if (!testpass)
+            {
+                // Test failed. Try draining the queue and reporting the
+                // message ids of the stuff left over.
+                if (DrainTarget(addr, target))
+                {
+                    log("Messages left in broker at end of test.");
+                    testpass = false;
+                }
+            }
+
             log(testName + " exiting with status " + (testpass ? "PASS" : "FAIL"));
 
-            connection.Close();
         }
 
         public void TransactedRetiringAndPosting(Address addr, string target)
         {
             string testName = "TransactedRetiringAndPosting";
             int nMsgs = 10;
+
+            DrainTarget(addr, target);
 
             Connection connection = new Connection(addr);
             Session session = new Session(connection);
@@ -269,13 +334,24 @@ namespace TransactionTestProgram
     {
         static void Main(string[] args)
         {
-            Address address = new Address("amqp://10.19.176.108:5672");
-//            Address address = new Address("amqp://admin:password@10.10.56.155:5672");
+            // mrg-win-1 running amqpnetlite TestBroker with command line:
+            //   d:\Users\crolke\git\amqpnetlite\bin\Debug>TestAmqpBroker\TestAmqpBroker.exe amqp://localhost:5672 /queues:q1
+            //   Test broker could run locally but then there's no wireshark trace. So run it remotely.
+            //
+            // Address address = new Address("amqp://mrg-win-1.ml3.eng.bos.redhat.com:5672");    // 10.19.176.108
+
+            // some laptop running ER14. User:admin, password:password, queue:q1
+            Address address = new Address("amqp://admin:password@10.10.58.144:5672");
+
             if (args.Length > 0)
             {
                 address = new Address(args[0]);
             }
             string target = "q1";
+            if (args.Length > 1)
+            {
+                target = args[1];
+            }
 
             Connection.DisableServerCertValidation = true;
             // uncomment the following to write frame traces
@@ -284,9 +360,9 @@ namespace TransactionTestProgram
 
             Tests tests = new TransactionTestProgram.Tests();
 
-            tests.TransactedPosting(address, target);
+            // This works so skip for now: tests.TransactedPosting(address, target);
             tests.TransactedRetiring(address, target);
-            //TransactedRetiringAndPosting(address, target);
+            // Haven't gotten here yet: TransactedRetiringAndPosting(address, target);
 
         }
     }
