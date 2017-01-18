@@ -265,27 +265,37 @@ namespace TransactionTestProgram
         {
             string testName = "TransactedRetiringAndPosting";
             int nMsgs = 10;
+            bool testpass = true;
 
+            log("Test: " + testName, true);
+            log("nMsgs= " + nMsgs);
+
+            log("Pretest - draining target queue...", true);
             DrainTarget(addr, target);
 
             Connection connection = new Connection(addr);
             Session session = new Session(connection);
             SenderLink sender = new SenderLink(session, "sender-" + testName, target);
 
+            log("Send N messages with no transaction scope", true);
             for (int i = 0; i < nMsgs; i++)
             {
+                log("Sending message with Id msg" + i);
                 Message message = new Message("test");
                 message.Properties = new Properties() { MessageId = "msg" + i, GroupId = testName };
                 sender.Send(message);
             }
 
+            log("Receive two messages");
             ReceiverLink receiver = new ReceiverLink(session, "receiver-" + testName, target);
 
             receiver.SetCredit(2, false);
             Message message1 = receiver.Receive();
+            log("Received message1 id:" + message1.Properties.MessageId);
             Message message2 = receiver.Receive();
+            log("Received message2 id:" + message2.Properties.MessageId);
 
-            // ack message1 and send a new message in a txn
+            log("ack message1 and send a new message in a txn");
             using (var ts = new TransactionScope())
             {
                 receiver.Accept(message1);
@@ -293,11 +303,13 @@ namespace TransactionTestProgram
                 Message message = new Message("test");
                 message.Properties = new Properties() { MessageId = "msg" + nMsgs, GroupId = testName };
                 sender.Send(message);
+                log("Sent message id: " + message.Properties.MessageId);
 
+                log("Transaction Complete()");
                 ts.Complete();
             }
 
-            // ack message2 and send a new message in a txn but abort the txn
+            log("ack message2 and send a new message in a txn but abort the txn");
             using (var ts = new TransactionScope())
             {
                 receiver.Accept(message2);
@@ -305,24 +317,38 @@ namespace TransactionTestProgram
                 Message message = new Message("test");
                 message.Properties = new Properties() { MessageId = "msg" + (nMsgs + 1), GroupId = testName };
                 sender.Send(message1);
+                log("Sent message id: " + message.Properties.MessageId);
             }
 
+            log("Release message 2");
             receiver.Release(message2);
 
-            // receive all messages. should see the effect of the first txn
+            log("Receive and Accept all messages. Expect msg1..msg(N+1)");
             receiver.SetCredit(nMsgs, false);
             for (int i = 1; i <= nMsgs; i++)
             {
                 Message message = receiver.Receive();
-                Trace.WriteLine(TraceLevel.Information, "receive: {0}", message.Properties.MessageId);
                 receiver.Accept(message);
-                if (!message.Properties.MessageId.Equals("msg" + i))
+                if (message.Properties.MessageId.Equals("msg" + i))
                 {
-                    Console.Error.WriteLine("MessageId does not match sequence");
+                    log("receive: " + message.Properties.MessageId);
+                }
+                else
+                {
+                    log("ERROR: Expected sequence is msg" + i + " but received " + message.Properties.MessageId);
+                    testpass = false;
                 }
             }
 
             connection.Close();
+
+            if (DrainTarget(addr, target))
+            {
+                log("ERROR: Messages left in broker at end of test.");
+                testpass = false;
+            }
+
+            log(testName + " exiting with status " + (testpass ? "PASS" : "FAIL"));
         }
     }
 
@@ -350,14 +376,13 @@ namespace TransactionTestProgram
             Tests tests = new TransactionTestProgram.Tests();
 
             // This works so skip for now: 
-            // tests.TransactedPosting(address, target);
+            tests.TransactedPosting(address, target);
 
             tests.TransactedRetiring(address, target);
 
             // Haven't gotten here yet: 
-            // tests.TransactedRetiringAndPosting(address, target);
+            tests.TransactedRetiringAndPosting(address, target);
 
         }
     }
 }
-
