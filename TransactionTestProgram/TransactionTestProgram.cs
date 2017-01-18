@@ -16,10 +16,10 @@ namespace TransactionTestProgram
         public void log(string what, bool optionalPadding = false)
         {
             if (optionalPadding)
-                System.Diagnostics.Trace.WriteLine("");
-            System.Diagnostics.Trace.WriteLine(what);
+                System.Console.WriteLine("");
+            System.Console.WriteLine(what);
             if (optionalPadding)
-                System.Diagnostics.Trace.WriteLine("");
+                System.Console.WriteLine("");
         }
 
 
@@ -145,6 +145,10 @@ namespace TransactionTestProgram
             int nMsgs = 10;
             bool testpass = true;
 
+            log("Test: " + testName, true);
+            log("nMsgs= " + nMsgs);
+
+            log("Pretest - draining target queue...", true);
             DrainTarget(addr, target);
 
             Connection connection = new Connection(addr);
@@ -152,8 +156,6 @@ namespace TransactionTestProgram
             SenderLink sender = new SenderLink(session, "sender-" + testName, target);
 
             // send one extra for validation
-            log(testName, true);
-            log("nMsgs= " + nMsgs);
             log("Send N+1 with no transaction scope", true);
             for (int i = 0; i < nMsgs + 1; i++)
             {
@@ -173,7 +175,7 @@ namespace TransactionTestProgram
             }
 
             // commit half
-            log("Create txn scope and accept half the messages");
+            log("Create txn scope and accept half the messages", true);
             using (var ts = new TransactionScope())
             {
                 for (int i = 0; i < nMsgs / 2; i++)
@@ -186,10 +188,7 @@ namespace TransactionTestProgram
             }
 
             // rollback
-            log("");
-            log("Create txn scope and accept other half BUT");
-            log(" do that in a failed txn scope that should roll back.");
-            log("");
+            log("Create txn scope and accept other half BUT do that in a failed txn scope that should roll back.", true);
             using (var ts = new TransactionScope())
             {
                 for (int i = nMsgs / 2; i < nMsgs; i++)
@@ -200,7 +199,7 @@ namespace TransactionTestProgram
                 log("Close txn scope without calling complete");
             }
 
-            // after rollback, messages should be still acquired
+            log("after rollback, messages should be still acquired", true);
             {
                 log("Receiving a single message");
                 Message message = receiver.Receive();
@@ -215,7 +214,7 @@ namespace TransactionTestProgram
             }
 
             // commit
-            log("Creating txn scope to accept 2nd half for real this time");
+            log("Creating txn scope to accept 2nd half for real this time", true);
             using (var ts = new TransactionScope())
             {
                 for (int i = nMsgs / 2; i < nMsgs; i++)
@@ -229,11 +228,11 @@ namespace TransactionTestProgram
 
             // only the 'extra' message is left
             {
-                log("Receive last message again");
+                log("Receive last message again", true);
                 Message message = receiver.Receive();
                 if (!message.Properties.MessageId.Equals("msg" + nMsgs))
                 {
-                    log("MessageId: " + message.Properties.MessageId +
+                    log("ERROR: MessageId: " + message.Properties.MessageId +
                         " does not match expected msg" + nMsgs);
                     testpass = false;
                 }
@@ -254,7 +253,7 @@ namespace TransactionTestProgram
             // message ids of the stuff left over.
             if (DrainTarget(addr, target))
             {
-                log("Messages left in broker at end of test.");
+                log("ERROR: Messages left in broker at end of test.");
                 testpass = false;
             }
 
@@ -331,14 +330,8 @@ namespace TransactionTestProgram
     {
         static void Main(string[] args)
         {
-            // mrg-win-1 running amqpnetlite TestBroker with command line:
-            //   d:\Users\crolke\git\amqpnetlite\bin\Debug>TestAmqpBroker\TestAmqpBroker.exe amqp://localhost:5672 /queues:q1
-            //   Test broker could run locally but then there's no wireshark trace. So run it remotely.
-            //
-            Address address = new Address("amqp://mrg-win-1.ml3.eng.bos.redhat.com:5672");    // 10.19.176.108
-
             // some laptop running ER14. User:admin, password:password, queue:q1
-            // Address address = new Address("amqp://admin:password@10.10.58.144:5672");
+            Address address = new Address("amqp://admin:password@10.10.59.93:5672");
 
             if (args.Length > 0)
             {
@@ -352,13 +345,17 @@ namespace TransactionTestProgram
 
             Connection.DisableServerCertValidation = true;
             Trace.TraceLevel = TraceLevel.Frame | TraceLevel.Verbose | TraceLevel.Output;
-            Trace.TraceListener = (f, a) => System.Diagnostics.Trace.WriteLine(DateTime.Now.ToString("[hh:mm:ss.fff]") + " " + string.Format(f, a));
+            Trace.TraceListener = (f, a) => System.Console.WriteLine(DateTime.Now.ToString("[hh:mm:ss.fff]") + " " + string.Format(f, a));
 
             Tests tests = new TransactionTestProgram.Tests();
 
-            // This works so skip for now: tests.TransactedPosting(address, target);
+            // This works so skip for now: 
+            // tests.TransactedPosting(address, target);
+
             tests.TransactedRetiring(address, target);
-            // Haven't gotten here yet: TransactedRetiringAndPosting(address, target);
+
+            // Haven't gotten here yet: 
+            // tests.TransactedRetiringAndPosting(address, target);
 
         }
     }
