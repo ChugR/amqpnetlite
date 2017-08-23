@@ -23,6 +23,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Web.Script.Serialization;
@@ -30,6 +31,29 @@ using Amqp;
 using Amqp.Framing;
 using Amqp.Types;
 
+// Large_content_test is driven by a list like this:
+//
+//  TYPE_MAP = {
+//    # List of sizes in Mb
+//    'binary': [1, 10, 100],
+//    'string': [1, 10, 100],
+//    'symbol': [1, 10, 100],
+//    # Tuple of two elements: (tot size of list/map in MB, List of no elements in list)
+//    # The num elements lists are powers of 2 so that they divide evenly into the size in MB (1024 * 1024 bytes)
+//    'list': [[1, [1, 16, 256, 4096]], [10, [1, 16, 256, 4096]], [100, [1, 16, 256, 4096]]],
+//    'map': [[1, [1, 16, 256, 4096]], [10, [1, 16, 256, 4096]], [100, [1, 16, 256, 4096]]],
+//    #'array': [[1, [1, 16, 256, 4096]], [10, [1, 16, 256, 4096]], [100, [1, 16, 256, 4096]]]
+//    }
+//
+// Sender receives command line args from this map:
+//     Sender host queuename binary '[1, 10, 100]'
+//     Sender host queuename list '[[1, [1, 16, 256, 4096]], [10, [1, 16, 256, 4096]], [100, [1, 16, 256, 4096]]]'
+//
+// Sender 
+//   1) generates actual .NET objects as specified
+//   2) uses the AMQP Lite client to generate messages holding the object
+//   3) sends the message(s) to the host/queuename.
+//
 namespace Qpidit
 {
     /// <summary>
@@ -412,14 +436,14 @@ namespace Qpidit
         private string brokerUrl;
         private string queueName;
         private string amqpType;
-        private string jsonMessages;
+        private string countSpec;
 
-        public Sender(string brokerUrl_, string queueName_, string amqpType_, string jsonMessages_)
+        public Sender(string brokerUrl_, string queueName_, string amqpType_, string countSpec_)
         {
             brokerUrl = brokerUrl_;
             queueName = queueName_;
             amqpType = amqpType_;
-            jsonMessages = jsonMessages_;
+            countSpec = countSpec_;
         }
 
         ~Sender()
@@ -430,20 +454,50 @@ namespace Qpidit
         {
             List<Message> messagesToSend = new List<Message>();
 
-            // Deserialize the json message list
-            JavaScriptSerializer jss = new JavaScriptSerializer();
-            var itMsgs = jss.Deserialize<dynamic>(jsonMessages);
-            //if (!(itMsgs is Array))
-            //    throw new ApplicationException(String.Format(
-            //        "Messages are not formatted as a json list: {0}, but as type: {1}", jsonMessages, itMsgs.GetType().Name));
+            // Deserialize the count spec list
+            JavaScriptSerializer csl = new JavaScriptSerializer();
+            var itMsgs = csl.Deserialize<dynamic>(countSpec);
+            if (!(itMsgs is Array))
+                throw new ApplicationException(String.Format(
+                    "Messages are not formatted as a json list: {0}, but as type: {1}", countSpec, itMsgs.GetType().Name));
 
             // Generate messages
-            foreach (object itMsg in itMsgs)
+            if (String.Equals(amqpType, "binary", StringComparison.OrdinalIgnoreCase) ||
+                String.Equals(amqpType, "string", StringComparison.OrdinalIgnoreCase) ||
+                String.Equals(amqpType, "symbol", StringComparison.OrdinalIgnoreCase))
             {
-                MessageValue mv = new MessageValue(amqpType, itMsg);
-                mv.Encode();
-                messagesToSend.Add(mv.ToMessage());
+                foreach (object itMsg in itMsgs)
+                {
+                    Console.WriteLine("Sender. type: {0}, mbSize: {1}", amqpType, itMsg.ToString());
+                    //MessageValue mv = new MessageValue(amqpType, itMsg);
+                    //mv.Encode();
+                    //messagesToSend.Add(mv.ToMessage());
+                }
             }
+            else if (String.Equals(amqpType, "map", StringComparison.OrdinalIgnoreCase) ||
+                     String.Equals(amqpType, "list", StringComparison.OrdinalIgnoreCase)
+                     // String.Equals(amqpType, "array", StringComparison.OrdinalIgnoreCase)
+                     )
+            {
+                foreach (object itMsg in itMsgs)
+                {
+                    // itMsg is <int, array<int>>. Unpack it.
+                    Object[] objectArray = itMsg as Object[];
+                    Int32 mbSize = (Int32) objectArray[0];
+                    Object[] nElements = (Object[])objectArray[1];
+
+                    foreach (Int32 eCount in nElements)
+                    {
+                        Console.WriteLine("Sender type: {0}, mbSize: {1}, elements: {2}", amqpType, mbSize, eCount);
+                    }
+                }
+            }
+            else
+            {
+                throw new ApplicationException(String.Format(
+                    "unsupported amqp type: {0}", amqpType));
+            }
+            return;
 
             // Send the messages
             ManualResetEvent senderAttached = new ManualResetEvent(false);
