@@ -462,16 +462,34 @@ namespace Qpidit
                     "Messages are not formatted as a json list: {0}, but as type: {1}", countSpec, itMsgs.GetType().Name));
 
             // Generate messages
-            if (String.Equals(amqpType, "binary", StringComparison.OrdinalIgnoreCase) ||
-                String.Equals(amqpType, "string", StringComparison.OrdinalIgnoreCase) ||
-                String.Equals(amqpType, "symbol", StringComparison.OrdinalIgnoreCase))
+            if (String.Equals(amqpType, "binary", StringComparison.OrdinalIgnoreCase))
             {
-                foreach (object itMsg in itMsgs)
+                foreach (Int32 mbSize in itMsgs)
                 {
-                    Console.WriteLine("Sender. type: {0}, mbSize: {1}", amqpType, itMsg.ToString());
-                    //MessageValue mv = new MessageValue(amqpType, itMsg);
-                    //mv.Encode();
-                    //messagesToSend.Add(mv.ToMessage());
+                    string binStr = new string(Convert.ToChar(0), mbSize * 1024 * 1024);
+                    MessageValue mv = new MessageValue(amqpType, binStr);
+                    mv.Encode();
+                    messagesToSend.Add(mv.ToMessage());
+                }
+            }
+            else if (String.Equals(amqpType, "string", StringComparison.OrdinalIgnoreCase))
+            {
+                foreach (Int32 mbSize in itMsgs)
+                {
+                    string binStr = new string('s', mbSize * 1024 * 1024 / 2);
+                    MessageValue mv = new MessageValue(amqpType, binStr);
+                    mv.Encode();
+                    messagesToSend.Add(mv.ToMessage());
+                }
+            }
+            else if (String.Equals(amqpType, "symbol", StringComparison.OrdinalIgnoreCase))
+            {
+                foreach (Int32 mbSize in itMsgs)
+                {
+                    string binStr = new string('b', mbSize * 1024 * 1024 / 2);
+                    MessageValue mv = new MessageValue(amqpType, binStr);
+                    mv.Encode();
+                    messagesToSend.Add(mv.ToMessage());
                 }
             }
             else if (String.Equals(amqpType, "map", StringComparison.OrdinalIgnoreCase) ||
