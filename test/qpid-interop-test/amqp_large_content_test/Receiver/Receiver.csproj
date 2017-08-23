@@ -22,7 +22,7 @@ under the License.
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
-    <ProjectGuid>{57860FB2-59C1-4302-B48C-982A82585116}</ProjectGuid>
+    <ProjectGuid>{F06A3059-FF80-421C-9158-AAB1ACCC5FFB}</ProjectGuid>
     <OutputType>Exe</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>Receiver</RootNamespace>
