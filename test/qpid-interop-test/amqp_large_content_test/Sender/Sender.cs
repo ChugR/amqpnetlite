@@ -252,6 +252,9 @@ namespace Qpidit
         /// </summary>
         public void Encode()
         {
+            if (encoded)
+                return;
+
             if (baseValue is Array)
             {
                 // List
@@ -268,7 +271,7 @@ namespace Qpidit
                     ((Amqp.Types.List)valueDirect).Add(itemValue.ToObject());
                 }
             }
-            if (baseValue is ArrayList)
+            else if (baseValue is ArrayList)
             {
                 // List
                 if (! String.Equals(baseType, "list", StringComparison.OrdinalIgnoreCase))
@@ -437,13 +440,15 @@ namespace Qpidit
         private string queueName;
         private string amqpType;
         private string countSpec;
+        private Int32 mbFactor;
 
-        public Sender(string brokerUrl_, string queueName_, string amqpType_, string countSpec_)
+        public Sender(string brokerUrl_, string queueName_, string amqpType_, string countSpec_, Int32 mbFactor_)
         {
             brokerUrl = brokerUrl_;
             queueName = queueName_;
             amqpType = amqpType_;
             countSpec = countSpec_;
+            mbFactor = mbFactor_;
         }
 
         ~Sender()
@@ -466,7 +471,7 @@ namespace Qpidit
             {
                 foreach (Int32 mbSize in itMsgs)
                 {
-                    string binStr = new string(Convert.ToChar(0), mbSize * 1024 * 1024);
+                    string binStr = new string(Convert.ToChar(0), mbSize * mbFactor);
                     MessageValue mv = new MessageValue(amqpType, binStr);
                     mv.Encode();
                     messagesToSend.Add(mv.ToMessage());
@@ -476,7 +481,7 @@ namespace Qpidit
             {
                 foreach (Int32 mbSize in itMsgs)
                 {
-                    string binStr = new string('s', mbSize * 1024 * 1024 / 2);
+                    string binStr = new string('s', mbSize * mbFactor);
                     MessageValue mv = new MessageValue(amqpType, binStr);
                     mv.Encode();
                     messagesToSend.Add(mv.ToMessage());
@@ -486,30 +491,62 @@ namespace Qpidit
             {
                 foreach (Int32 mbSize in itMsgs)
                 {
-                    string binStr = new string('b', mbSize * 1024 * 1024 / 2);
+                    string binStr = new string('b', mbSize * mbFactor);
                     MessageValue mv = new MessageValue(amqpType, binStr);
                     mv.Encode();
                     messagesToSend.Add(mv.ToMessage());
                 }
             }
-            else if (String.Equals(amqpType, "map", StringComparison.OrdinalIgnoreCase) ||
-                     String.Equals(amqpType, "list", StringComparison.OrdinalIgnoreCase)
-                     // String.Equals(amqpType, "array", StringComparison.OrdinalIgnoreCase)
-                     )
+            else if (String.Equals(amqpType, "list", StringComparison.OrdinalIgnoreCase))
             {
                 foreach (object itMsg in itMsgs)
                 {
-                    // itMsg is <int, array<int>>. Unpack it.
+                    // itMsg is <int, array<int>>.
                     Object[] objectArray = itMsg as Object[];
-                    Int32 mbSize = (Int32) objectArray[0];
+                    Int32 mbSize = (Int32)objectArray[0];
                     Object[] nElements = (Object[])objectArray[1];
 
                     foreach (Int32 eCount in nElements)
                     {
                         Console.WriteLine("Sender type: {0}, mbSize: {1}, elements: {2}", amqpType, mbSize, eCount);
+                        Int32 sizePerEltBytes = (mbSize * mbFactor) / eCount;
+                        string[] testList = new string[eCount];
+                        for (int i=0; i<eCount; i++)
+                        {
+                            testList[i] = new string('L', sizePerEltBytes);
+                        }
+                        MessageValue mv = new MessageValue(amqpType, testList);
+                        mv.Encode();
+                        messagesToSend.Add(mv.ToMessage());
                     }
                 }
             }
+            else if (String.Equals(amqpType, "map", StringComparison.OrdinalIgnoreCase))
+            {
+                foreach (object itMsg in itMsgs)
+                {
+                    // itMsg is <int, array<int>>.
+                    Object[] objectArray = itMsg as Object[];
+                    Int32 mbSize = (Int32)objectArray[0];
+                    Object[] nElements = (Object[])objectArray[1];
+
+                    foreach (Int32 eCount in nElements)
+                    {
+                        Console.WriteLine("Sender type: {0}, mbSize: {1}, elements: {2}", amqpType, mbSize, eCount);
+                        Int32 sizePerEltBytes = (mbSize * mbFactor) / eCount;
+                        Dictionary<string, object> testMap = new Dictionary<string, object>();
+                        for (int i = 0; i < eCount; i++)
+                        {
+                            testMap[i.ToString("000000")] = new string('M', sizePerEltBytes);
+                        }
+                        MessageValue mv = new MessageValue(amqpType, testMap);
+                        mv.Encode();
+                        messagesToSend.Add(mv.ToMessage());
+                    }
+                }
+            }
+            // else if (String.Equals(amqpType, "array", StringComparison.OrdinalIgnoreCase))
+            //{ /* TODO */ }
             else
             {
                 throw new ApplicationException(String.Format(
@@ -558,6 +595,7 @@ namespace Qpidit
              *       4: Test value(s) as JSON string
              */
             int exitCode = 0;
+            const Int32 mbFactor = 1024 * 1024; // command line specifies small(ish) numbers of megabytes. Adjust size of a megabyte here.
             try
             {
                 if (args.Length != 4)
@@ -568,7 +606,7 @@ namespace Qpidit
                 //Trace.TraceLevel = TraceLevel.Frame | TraceLevel.Verbose;
                 //Trace.TraceListener = (f, a) => Console.WriteLine(DateTime.Now.ToString("[hh:mm:ss.fff]") + " " + string.Format(f, a));
 
-                Sender sender = new Qpidit.Sender(args[0], args[1], args[2], args[3]);
+                Sender sender = new Qpidit.Sender(args[0], args[1], args[2], args[3], mbFactor);
                 sender.run();
             }
             catch (Exception e)
