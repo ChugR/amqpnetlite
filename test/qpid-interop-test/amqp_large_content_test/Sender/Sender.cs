@@ -455,10 +455,8 @@ namespace Qpidit
         { }
 
 
-        public void run()
+        public IEnumerable<Message> AllMessages()
         {
-            List<Message> messagesToSend = new List<Message>();
-
             // Deserialize the count spec list
             JavaScriptSerializer csl = new JavaScriptSerializer();
             var itMsgs = csl.Deserialize<dynamic>(countSpec);
@@ -473,8 +471,7 @@ namespace Qpidit
                 {
                     string binStr = new string(Convert.ToChar(0), mbSize * mbFactor);
                     MessageValue mv = new MessageValue(amqpType, binStr);
-                    mv.Encode();
-                    messagesToSend.Add(mv.ToMessage());
+                    yield return mv.ToMessage();
                 }
             }
             else if (String.Equals(amqpType, "string", StringComparison.OrdinalIgnoreCase))
@@ -483,8 +480,7 @@ namespace Qpidit
                 {
                     string binStr = new string('s', mbSize * mbFactor);
                     MessageValue mv = new MessageValue(amqpType, binStr);
-                    mv.Encode();
-                    messagesToSend.Add(mv.ToMessage());
+                    yield return mv.ToMessage();
                 }
             }
             else if (String.Equals(amqpType, "symbol", StringComparison.OrdinalIgnoreCase))
@@ -493,8 +489,7 @@ namespace Qpidit
                 {
                     string binStr = new string('b', mbSize * mbFactor);
                     MessageValue mv = new MessageValue(amqpType, binStr);
-                    mv.Encode();
-                    messagesToSend.Add(mv.ToMessage());
+                    yield return mv.ToMessage();
                 }
             }
             else if (String.Equals(amqpType, "list", StringComparison.OrdinalIgnoreCase))
@@ -508,16 +503,14 @@ namespace Qpidit
 
                     foreach (Int32 eCount in nElements)
                     {
-                        Console.WriteLine("Sender type: {0}, mbSize: {1}, elements: {2}", amqpType, mbSize, eCount);
                         Int32 sizePerEltBytes = (mbSize * mbFactor) / eCount;
                         string[] testList = new string[eCount];
-                        for (int i=0; i<eCount; i++)
+                        for (int i = 0; i < eCount; i++)
                         {
                             testList[i] = new string('L', sizePerEltBytes);
                         }
                         MessageValue mv = new MessageValue(amqpType, testList);
-                        mv.Encode();
-                        messagesToSend.Add(mv.ToMessage());
+                        yield return mv.ToMessage();
                     }
                 }
             }
@@ -532,7 +525,6 @@ namespace Qpidit
 
                     foreach (Int32 eCount in nElements)
                     {
-                        Console.WriteLine("Sender type: {0}, mbSize: {1}, elements: {2}", amqpType, mbSize, eCount);
                         Int32 sizePerEltBytes = (mbSize * mbFactor) / eCount;
                         Dictionary<string, object> testMap = new Dictionary<string, object>();
                         for (int i = 0; i < eCount; i++)
@@ -540,8 +532,7 @@ namespace Qpidit
                             testMap[i.ToString("000000")] = new string('M', sizePerEltBytes);
                         }
                         MessageValue mv = new MessageValue(amqpType, testMap);
-                        mv.Encode();
-                        messagesToSend.Add(mv.ToMessage());
+                        yield return mv.ToMessage();
                     }
                 }
             }
@@ -552,8 +543,10 @@ namespace Qpidit
                 throw new ApplicationException(String.Format(
                     "unsupported amqp type: {0}", amqpType));
             }
-            return;
+        }
 
+        public void run()
+        {
             // Send the messages
             ManualResetEvent senderAttached = new ManualResetEvent(false);
             OnAttached onSenderAttached = (l, a) => { senderAttached.Set(); };
@@ -561,12 +554,12 @@ namespace Qpidit
             Connection connection = new Connection(address);
             Session session = new Session(connection);
             SenderLink sender = new SenderLink(session,
-                                               "Lite-amqp-types-test-sender",
+                                               "Lite-amqp-large-content-test-sender",
                                                new Target() { Address = queueName },
                                                onSenderAttached);
             if (senderAttached.WaitOne(10000))
             {
-                foreach (Message message in messagesToSend)
+                foreach (Message message in AllMessages())
                 {
                     sender.Send(message);
                 }
