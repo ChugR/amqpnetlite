@@ -460,9 +460,9 @@ namespace Qpidit
             // Deserialize the count spec list
             JavaScriptSerializer csl = new JavaScriptSerializer();
             var itMsgs = csl.Deserialize<dynamic>(countSpec);
-            if (!(itMsgs is Array))
-                throw new ApplicationException(String.Format(
-                    "Messages are not formatted as a json list: {0}, but as type: {1}", countSpec, itMsgs.GetType().Name));
+            //if (!(itMsgs is Array))
+            //    throw new ApplicationException(String.Format(
+            //        "Messages are not formatted as a json list: {0}, but as type: {1}", countSpec, itMsgs.GetType().Name));
 
             // Generate messages
             if (String.Equals(amqpType, "binary", StringComparison.OrdinalIgnoreCase))
