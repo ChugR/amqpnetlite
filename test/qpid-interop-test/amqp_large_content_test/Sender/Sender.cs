@@ -434,6 +434,175 @@ namespace Qpidit
         }
     }
 
+
+    /// <summary>
+    /// Classes to parse JSON size arg for map and list types
+    /// </summary>
+    class MbBlock
+    {
+        public Int32 mBytes { get; set; }
+        public List<Int32> nChunks { get; set; }
+    }
+    class MbSpec
+    {
+        public List<MbBlock> MbBlocks { get; set; }
+
+        enum ParseState
+        {
+            START,
+            NEW_MBBLOCK,
+            M_BYTES,
+            NEW_NCHUNKS,
+            NCHUNK,
+            END_NCHUNK,
+            END_MBBLOCK,
+            END
+        }
+
+        public MbSpec(string sizeSpec)
+        {
+            MbBlock curMbBlock = new MbBlock();
+            Int32 curInt = 0; ;
+
+            ParseState ps = ParseState.START;
+
+            int pos = -1;
+            foreach (char ch in sizeSpec)
+            {
+                pos += 1;
+                //Console.WriteLine("ch = '{0}', position = {1}", ch, pos);
+                string err  = "";
+                switch (ps)
+                {
+                    case ParseState.START:
+                        if (ch == '[')
+                        {
+                            MbBlocks = new List<MbBlock>();
+                            ps = ParseState.NEW_MBBLOCK;
+                        }
+                        else
+                            err = "no leading '['";
+                        break;
+                    case ParseState.NEW_MBBLOCK:
+                        if (ch == ']')
+                        {
+                            MbBlocks.Add(curMbBlock);
+                            ps = ParseState.END;
+                        }
+                        else if (ch == '[')
+                        {
+                            curMbBlock = new MbBlock();
+                            ps = ParseState.M_BYTES;
+                            curInt = 0;
+                        }
+                        else if (Char.IsWhiteSpace(ch))
+                        {
+                            // ignore whitespace
+                        }
+                        else
+                            err = "NEW_MBBLOCK expects '[' or ']'";
+                        break;
+                    case ParseState.M_BYTES:
+                        if (Char.IsDigit(ch))
+                        {
+                            curInt *= 10;
+                            curInt += (int)(ch - '0');
+                        }
+                        else if (ch == ',')
+                        {
+                            curMbBlock.mBytes = curInt;
+                            curInt = 0;
+                            ps = ParseState.NEW_NCHUNKS;
+                        }
+                        else if (Char.IsWhiteSpace(ch))
+                        {
+                            // ignore whitespace
+                        }
+                        else
+                            err = "M_BYTES expects digit or ','";
+                        break;
+                    case ParseState.NEW_NCHUNKS:
+                        if (ch == '[')
+                        {
+                            curMbBlock.nChunks = new List<Int32>();
+                            ps = ParseState.NCHUNK;
+                        }
+                        else if (Char.IsWhiteSpace(ch))
+                        {
+                            // ignore whitespace
+                        }
+                        else
+                            err = "NEW_NCHUNKS expects digit or '['";
+                        break;
+                    case ParseState.NCHUNK:
+                        if (Char.IsDigit(ch))
+                        {
+                            curInt *= 10;
+                            curInt += (int)(ch - '0');
+                        }
+                        else if (ch == ',')
+                        {
+                            curMbBlock.nChunks.Add(curInt);
+                            curInt = 0;
+                        }
+                        else if (Char.IsWhiteSpace(ch))
+                        {
+                            // ignore whitespace
+                        }
+                        else if (ch == ']')
+                        {
+                            curMbBlock.nChunks.Add(curInt);
+                            curInt = 0;
+                            ps = ParseState.END_NCHUNK;
+                        }
+                        else
+                            err = "NCHUNK expects digit, ',', or ']'";
+                        break;
+                    case ParseState.END_NCHUNK:
+                        if (Char.IsWhiteSpace(ch))
+                        {
+                            // ignore whitespace
+                        }
+                        else if (ch == ']')
+                        {
+                            MbBlocks.Add(curMbBlock);
+                            curMbBlock = new MbBlock();
+                            ps = ParseState.END_MBBLOCK;
+                        }
+                        else
+                            err = "END_MBBLOCK expects ']'";
+                        break;
+                    case ParseState.END_MBBLOCK:
+                        if (Char.IsWhiteSpace(ch))
+                        {
+                            // ignore whitespace
+                        }
+                        else if (ch == ',')
+                        {
+                            ps = ParseState.NEW_MBBLOCK;
+                        }
+                        else if (ch == ']')
+                        {
+                            ps = ParseState.END;
+                        }
+                        else
+                            err = "END_MBBLOCK expects ',', ']', or '['";
+                        break;
+                    case ParseState.END:
+                        err = "illegal characters after JSON end of object";
+                        break;
+                }
+
+                if (err != "")
+                {
+                    throw new ApplicationException(String.Format("Size spec parse error at position {0}, state {1}: {2}", pos, ps, err));
+                }
+            }
+        }
+    }
+
+
+
     class Sender
     {
         private string brokerUrl;
@@ -441,6 +610,7 @@ namespace Qpidit
         private string amqpType;
         private string countSpec;
         private Int32 mbFactor;
+        private MbSpec mbSpec;
 
         public Sender(string brokerUrl_, string queueName_, string amqpType_, string countSpec_, Int32 mbFactor_)
         {
@@ -457,53 +627,54 @@ namespace Qpidit
 
         public IEnumerable<Message> AllMessages()
         {
-            // Deserialize the count spec list
-            JavaScriptSerializer csl = new JavaScriptSerializer();
-            var itMsgs = csl.Deserialize<dynamic>(countSpec);
-            //if (!(itMsgs is Array))
-            //    throw new ApplicationException(String.Format(
-            //        "Messages are not formatted as a json list: {0}, but as type: {1}", countSpec, itMsgs.GetType().Name));
+            if (String.Equals(amqpType, "binary", StringComparison.OrdinalIgnoreCase) ||
+                String.Equals(amqpType, "string", StringComparison.OrdinalIgnoreCase) ||
+                String.Equals(amqpType, "symbol", StringComparison.OrdinalIgnoreCase))
+            {
+                // Deserialize the count spec list
+                JavaScriptSerializer csl = new JavaScriptSerializer();
+                var itMsgs = csl.Deserialize<dynamic>(countSpec);
+                //if (!(itMsgs is Array))
+                //    throw new ApplicationException(String.Format(
+                //        "Messages are not formatted as a json list: {0}, but as type: {1}", countSpec, itMsgs.GetType().Name));
 
-            // Generate messages
-            if (String.Equals(amqpType, "binary", StringComparison.OrdinalIgnoreCase))
-            {
-                foreach (Int32 mbSize in itMsgs)
+                // Generate messages
+                if (String.Equals(amqpType, "binary", StringComparison.OrdinalIgnoreCase))
                 {
-                    string binStr = new string(Convert.ToChar(0), mbSize * mbFactor);
-                    MessageValue mv = new MessageValue(amqpType, binStr);
-                    yield return mv.ToMessage();
+                    foreach (Int32 mbSize in itMsgs)
+                    {
+                        string binStr = new string(Convert.ToChar(0), mbSize * mbFactor);
+                        MessageValue mv = new MessageValue(amqpType, binStr);
+                        yield return mv.ToMessage();
+                    }
                 }
-            }
-            else if (String.Equals(amqpType, "string", StringComparison.OrdinalIgnoreCase))
-            {
-                foreach (Int32 mbSize in itMsgs)
+                else if (String.Equals(amqpType, "string", StringComparison.OrdinalIgnoreCase))
                 {
-                    string binStr = new string('s', mbSize * mbFactor);
-                    MessageValue mv = new MessageValue(amqpType, binStr);
-                    yield return mv.ToMessage();
+                    foreach (Int32 mbSize in itMsgs)
+                    {
+                        string binStr = new string('s', mbSize * mbFactor);
+                        MessageValue mv = new MessageValue(amqpType, binStr);
+                        yield return mv.ToMessage();
+                    }
                 }
-            }
-            else if (String.Equals(amqpType, "symbol", StringComparison.OrdinalIgnoreCase))
-            {
-                foreach (Int32 mbSize in itMsgs)
+                else if (String.Equals(amqpType, "symbol", StringComparison.OrdinalIgnoreCase))
                 {
-                    string binStr = new string('b', mbSize * mbFactor);
-                    MessageValue mv = new MessageValue(amqpType, binStr);
-                    yield return mv.ToMessage();
+                    foreach (Int32 mbSize in itMsgs)
+                    {
+                        string binStr = new string('b', mbSize * mbFactor);
+                        MessageValue mv = new MessageValue(amqpType, binStr);
+                        yield return mv.ToMessage();
+                    }
                 }
             }
             else if (String.Equals(amqpType, "list", StringComparison.OrdinalIgnoreCase))
             {
-                foreach (object itMsg in itMsgs)
+                mbSpec = new MbSpec(countSpec);
+                foreach (MbBlock mbBlock in mbSpec.MbBlocks)
                 {
-                    // itMsg is <int, array<int>>.
-                    Object[] objectArray = itMsg as Object[];
-                    Int32 mbSize = (Int32)objectArray[0];
-                    Object[] nElements = (Object[])objectArray[1];
-
-                    foreach (Int32 eCount in nElements)
+                    foreach (Int32 eCount in mbBlock.nChunks)
                     {
-                        Int32 sizePerEltBytes = (mbSize * mbFactor) / eCount;
+                        Int32 sizePerEltBytes = (mbBlock.mBytes * mbFactor) / eCount;
                         string[] testList = new string[eCount];
                         for (int i = 0; i < eCount; i++)
                         {
@@ -516,16 +687,12 @@ namespace Qpidit
             }
             else if (String.Equals(amqpType, "map", StringComparison.OrdinalIgnoreCase))
             {
-                foreach (object itMsg in itMsgs)
+                mbSpec = new MbSpec(countSpec);
+                foreach (MbBlock mbBlock in mbSpec.MbBlocks)
                 {
-                    // itMsg is <int, array<int>>.
-                    Object[] objectArray = itMsg as Object[];
-                    Int32 mbSize = (Int32)objectArray[0];
-                    Object[] nElements = (Object[])objectArray[1];
-
-                    foreach (Int32 eCount in nElements)
+                    foreach (Int32 eCount in mbBlock.nChunks)
                     {
-                        Int32 sizePerEltBytes = (mbSize * mbFactor) / eCount;
+                        Int32 sizePerEltBytes = (mbBlock.mBytes * mbFactor) / eCount;
                         Dictionary<string, object> testMap = new Dictionary<string, object>();
                         for (int i = 0; i < eCount; i++)
                         {
