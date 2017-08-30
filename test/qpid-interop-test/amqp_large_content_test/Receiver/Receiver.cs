@@ -425,7 +425,24 @@ namespace Qpidit
         ~Receiver()
         { }
 
-        public string ReceivedValueList
+        public string ReceivedValueListSimple
+        {
+            get
+            {
+                StringBuilder sb = new StringBuilder();
+                sb.Append("[");
+                for (int i = 0; i < receivedMByteSize.Count; i++)
+                 {
+                    if (i > 0) sb.Append(", ");
+                    sb.Append(receivedMByteSize[i].ToString());
+                 }
+                sb.Append("]");
+                return sb.ToString();
+            }
+        }
+
+
+        public string ReceivedValueListComplex
         {
             get
             {
@@ -460,6 +477,17 @@ namespace Qpidit
 
                 sb.Append("]]]"); // end current chunk list, mb size list, and whole list
                 return sb.ToString();
+            }
+        }
+
+
+        public string ReceivedValueList
+        {
+            get
+            {
+                return (String.Equals(amqpType, "list", StringComparison.OrdinalIgnoreCase) ||
+                        String.Equals(amqpType, "map", StringComparison.OrdinalIgnoreCase))
+                        ? ReceivedValueListComplex : ReceivedValueListSimple;
             }
         }
 
