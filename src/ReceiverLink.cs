@@ -35,8 +35,8 @@ namespace Amqp
         const int CREDIT_NOT_SET = -1;
 
         // flow control
-        SequenceNumber deliveryCountSnd;
-        SequenceNumber deliveryCountRcv;
+        int deliveryCountSnd;
+        int deliveryCountRcv;
         int credit;
         bool autoRestore;
         int restoreCountRcv;
@@ -86,7 +86,7 @@ namespace Amqp
             this.deliveryCountRcv = 0;
             this.credit = CREDIT_NOT_SET;
             this.autoRestore = true;
-            this.restoreCountRcv = CREDIT_NOT_SET;
+            this.restoreCountRcv = 0;
             this.receivedMessages = new LinkedList();
             this.waiterList = new LinkedList();
             this.SendAttach(true, 0, attach);
@@ -104,16 +104,16 @@ namespace Amqp
             this.SetCredit(credit, true);
         }
 
-        internal uint ComputeCredit(SequenceNumber count_rcv, SequenceNumber count_snd, int credit)
+        internal int ComputeCredit(int count_rcv, int count_snd, int credit)
         {
-            int rCredit = Math.Max(count_rcv + credit - count_snd, 0);
-            return (uint)rCredit;
+            uint rCredit = (uint)count_rcv + (uint)credit - (uint)count_snd;
+            return (int)rCredit;
         }
 
-        internal int ComputeRestoreCount(SequenceNumber count_rcv, int credit)
+        internal int ComputeRestoreCount(int count_rcv, int credit)
         {
             int delta = (credit + 1) / 2;
-            int rCount = (int)((uint)count_rcv + (uint)delta);
+            int rCount = count_rcv + delta;
             return rCount;
         }
 
@@ -127,7 +127,7 @@ namespace Amqp
         /// or rejected by the caller. If false, caller is responsible for manage link credits.</param>
         public void SetCredit(int credit, bool autoRestore = true)
         {
-            uint newCredit;
+            int newCredit;
             lock (this.ThisLock)
             {
                 if (this.IsDetaching)
@@ -140,7 +140,7 @@ namespace Amqp
                 newCredit  = ComputeCredit(this.deliveryCountRcv, this.deliveryCountSnd, this.credit);
                 this.restoreCountRcv = ComputeRestoreCount(this.deliveryCountSnd, this.credit);
             }
-            this.SendFlow(this.deliveryCountRcv, (uint)newCredit, false);
+            this.SendFlow((uint)this.deliveryCountRcv, (uint)newCredit, false);
         }
 
         /// <summary>
@@ -234,7 +234,7 @@ namespace Amqp
 
             if (!transfer.More)
             {
-                this.deliveryCountSnd++;
+                Interlocked.Increment(ref this.deliveryCountSnd);
                 this.deliveryCurrent = null;
                 delivery.Message = Message.Decode(delivery.Buffer);
 
@@ -289,7 +289,7 @@ namespace Amqp
         internal override void OnAttach(uint remoteHandle, Attach attach)
         {
             base.OnAttach(remoteHandle, attach);
-            this.deliveryCountSnd = this.deliveryCountRcv = attach.InitialDeliveryCount;
+            this.deliveryCountSnd = this.deliveryCountRcv = (int)attach.InitialDeliveryCount;
         }
 
         internal override void OnDeliveryStateChanged(Delivery delivery)
@@ -373,13 +373,23 @@ namespace Amqp
         void DisposeMessage(Message message, Outcome outcome)
         {
             Delivery delivery = message.Delivery;
-            this.deliveryCountRcv++;
-            int count_rcv = (int)((uint)this.deliveryCountRcv);
-            if (this.autoRestore && this.credit > 0 && this.restoreCountRcv == count_rcv)
+            bool issueFlow = false;
+            int newCredit = 0;
+            int dcSnd = 0;
+            lock (this.ThisLock)
             {
-                uint newCredit = ComputeCredit(this.deliveryCountRcv, this.deliveryCountSnd, this.credit);
-                this.restoreCountRcv = ComputeRestoreCount(this.deliveryCountRcv, this.credit);
-                this.SendFlow(this.deliveryCountSnd, newCredit, false);
+                Interlocked.Increment(ref this.deliveryCountRcv);
+                if (this.autoRestore && this.credit > 0 && this.restoreCountRcv == this.deliveryCountRcv)
+                {
+                    issueFlow = true;
+                    newCredit = ComputeCredit(this.deliveryCountRcv, this.deliveryCountSnd, this.credit);
+                    dcSnd = this.deliveryCountSnd;
+                    this.restoreCountRcv = ComputeRestoreCount(this.deliveryCountRcv, this.credit);
+                }
+            }
+            if (issueFlow)
+            {
+                this.SendFlow((uint)dcSnd, (uint)newCredit, false);
             }
             if (delivery == null || delivery.Settled)
             {
