@@ -104,16 +104,31 @@ namespace Amqp
             this.SetCredit(credit, true);
         }
 
+        /// <summary>
+        /// Computes amount of credit issue based on desired credit and number
+        /// of messages in flight. Will not return negative credit.
+        /// </summary>
+        /// <param name="count_rcv">reciever delivery count</param>
+        /// <param name="count_snd">sender deliver count</param>
+        /// <param name="credit">desirec message credit</param>
+        /// <returns></returns>
         internal int ComputeCredit(int count_rcv, int count_snd, int credit)
         {
             uint rCredit = (uint)count_rcv + (uint)credit - (uint)count_snd;
-            return (int)rCredit;
+            int iCredit = Math.Max((int)rCredit, 0);
+            return iCredit;
         }
 
+        /// <summary>
+        /// Compute receive deliver count at which autoRestore will 
+        /// issue a new credit flow.
+        /// </summary>
+        /// <param name="count_rcv">receiver delivery count</param>
+        /// <param name="credit">credit setting</param>
+        /// <returns></returns>
         internal int ComputeRestoreCount(int count_rcv, int credit)
         {
-            int delta = (credit + 1) / 2;
-            int rCount = count_rcv + delta;
+            int rCount = count_rcv + ((credit + 1) / 2);
             return rCount;
         }
 
@@ -123,8 +138,11 @@ namespace Amqp
         /// The receive delivery count for when to autoRestore is computed.
         /// </summary>
         /// <param name="credit">The new link credit.</param>
-        /// <param name="autoRestore">If true, link credit is auto-restored when a message is accepted
-        /// or rejected by the caller. If false, caller is responsible for manage link credits.</param>
+        /// <param name="autoRestore"> If false, caller is responsible for
+        /// managing link credit. If true, link credit is auto-restored when
+        /// a message is disposed (Accept, Reject, Modified, Released) by the caller
+        /// and the receiver has disposed of enough messages so that a new credit of at least
+        /// credit/2 may be issued.</param>
         public void SetCredit(int credit, bool autoRestore = true)
         {
             int newCredit;
@@ -234,7 +252,7 @@ namespace Amqp
 
             if (!transfer.More)
             {
-                Interlocked.Increment(ref this.deliveryCountSnd);
+                Interlocked.Increment(ref this.deliveryCountSnd); // message has arrived
                 this.deliveryCurrent = null;
                 delivery.Message = Message.Decode(delivery.Buffer);
 
