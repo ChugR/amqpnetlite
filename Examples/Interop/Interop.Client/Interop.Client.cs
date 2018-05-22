@@ -32,7 +32,7 @@ namespace Amqp.Extensions.Examples
             message.Header.Durable = true;
 
             Console.WriteLine("Sending N messages...");
-            int N = 200;
+            int N = 0;
             for (var i = 0; i < N; i++)
             {
                 sender.Send(message);
@@ -77,7 +77,7 @@ namespace Amqp.Extensions.Examples
             // we should only see 10 received... we see all 1000 instead.
             int nIn = 0;
             int nDone = 0;
-            receiver.Start(10, async (r, m) =>
+            receiver.Start(20, async (r, m) =>
             {
                 nIn++;
                 Console.WriteLine("nIn = {0}, nDone = {1}, InFlight = {2} In receive callback. Starting await...", nIn, nDone, nIn-nDone);
