@@ -36,6 +36,7 @@ namespace Examples.Async
         private string replyto;
         private bool   synchronous;
         private int    timeout;
+        private long    ttl;
         private string url;
 
         public Options(string[] args)
@@ -51,6 +52,7 @@ namespace Examples.Async
             this.replyto = "";
             this.synchronous = false;
             this.timeout = 0;
+            this.ttl = -1;
             this.url = "amqp://guest:guest@127.0.0.1:5672";
             Parse(args);
         }
@@ -73,6 +75,7 @@ namespace Examples.Async
             Console.WriteLine(" --replyto STRING  []      - message ReplyTo address");
             Console.WriteLine(" --synchronous     [false] - wait for peer to accept message before sending next");
             Console.WriteLine(" --timeout SECONDS [0]     - send for N seconds; 0 disables timeout");
+            Console.WriteLine(" --ttl             [0]     - message TimeToLive in mS. 0 disables sending ttl");
             Console.WriteLine(" --help                    - print this message and exit");
             Console.WriteLine("");
             Console.WriteLine("Exit codes:");
@@ -157,6 +160,19 @@ namespace Examples.Async
                         this.instances = i;
                     }
                 }
+                else if (arg == "--ttl")
+                {
+                    arg = args[++current];
+                    int i = int.Parse(arg);
+                    if (i >= 0)
+                    {
+                        this.ttl = i;
+                    }
+                    else
+                    {
+                        throw new ArgumentException(String.Format("TTL must be greater than zero"));
+                    }
+                }
                 else if (arg == "--synchronous")
                 {
                     this.synchronous = true;
@@ -233,6 +249,11 @@ namespace Examples.Async
         public bool Synchronous
         {
             get { return this.synchronous;  }
+        }
+
+        public long Ttl
+        {
+            get { return this.ttl;  }
         }
     }
 }

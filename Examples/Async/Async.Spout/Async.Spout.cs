@@ -96,10 +96,17 @@ namespace Examples.Async {
 
                     Message message = new Message(options.Content);
                     message.Properties = new Properties() { MessageId = id };
-                    if (options.Durable)
+                    if (options.Durable || options.Ttl >= 0)
                     {
                         message.Header = new Header();
-                        message.Header.Durable = true;
+                        if (options.Ttl >= 0)
+                        {
+                            message.Header.Ttl = (uint)options.Ttl;
+                        }
+                        if (options.Durable)
+                        {
+                            message.Header.Durable = true;
+                        }
                     }
                     OutcomeCallback callback = (l, msg, o, s) => { callbackCount++; };
                     if (options.Synchronous)
