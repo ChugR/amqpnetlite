@@ -41,8 +41,7 @@ namespace Examples.Async {
     }
 
     /// <summary>
-    /// Task extension to run a task without waiting for it to complete.
-    /// OnException it prints to stderr.
+    /// Async version of AutoResetEvent
     ///
     /// Credit to:
     /// Building Async Coordination Primitives, Part 2: AsyncAutoResetEvent
