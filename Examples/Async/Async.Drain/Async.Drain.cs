@@ -29,6 +29,31 @@ using System.Threading.Tasks;
 
 namespace Examples.Async {
 
+    public class PerformanceStats {
+        public long snapMs;
+        public long lastMs;
+        public int snapTotal;
+        public int snapToWorker;
+        public int snapRetired;
+        public int lastTotal;
+        public int lastToWorker;
+        public int lastRetired;
+
+        public PerformanceStats()
+        {
+            // this snapshot = current - last
+            snapMs = 0;
+            snapTotal = 0;
+            snapToWorker = 0;
+            snapRetired = 0;
+            // last snapshot <= current
+            lastMs = 0;
+            lastTotal = 0;
+            lastToWorker = 0;
+            lastRetired = 0;
+        }
+    }
+
     class Drain {
         //
         // Sample invocation: Async.Drain.exe --broker localhost:5672 --task-duration 30 --address my-queue
@@ -41,9 +66,8 @@ namespace Examples.Async {
         List<Worker> workersIdle;
         List<Worker> workersBusy;
         List<Message> messageQueue;
-        int statMsgInTotal;
-        int statMsgToWorker;
-        int statMsgRetired;
+        PerformanceStats totalStats;
+        PerformanceStats intervalStats;
         bool timesUp; // wall clock expiration exit triggered
         bool msgCountSatisfied; // count completion exit triggered
         AsyncAutoResetEvent wake;
@@ -68,9 +92,8 @@ namespace Examples.Async {
                 workersBusy.Insert(i, null);
             }
             messageQueue = new List<Message>();
-            statMsgInTotal = 0;
-            statMsgToWorker = 0;
-            statMsgRetired = 0;
+            totalStats = new PerformanceStats();
+            intervalStats = new PerformanceStats();
             timesUp = false;
             msgCountSatisfied = false;
             wake = new AsyncAutoResetEvent();
@@ -83,20 +106,40 @@ namespace Examples.Async {
 
         public void LoggerTrace(string ls)
         {
-            Console.WriteLine(DateTime.Now.ToString("[hh:mm:ss.fff]") +
+            Console.WriteLine(DateTime.Now.ToString("[hh:mm:ss.ffffff]") +
                 " TRACE Instance:" + instance + " " + ls);
         }
 
         public void LoggerDebug(string ls)
         {
-            Console.WriteLine(DateTime.Now.ToString("[hh:mm:ss.fff]") +
+            Console.WriteLine(DateTime.Now.ToString("[hh:mm:ss.ffffff]") +
                 " DEBUG Instance:" + instance + " " + ls);
         }
 
         public void LoggerInfo(string ls)
         {
-            Console.WriteLine(DateTime.Now.ToString("[hh:mm:ss.fff]") + 
+            Console.WriteLine(DateTime.Now.ToString("[hh:mm:ss.ffffff]") + 
                 " INFO Instance:" + instance + " " + ls);
+        }
+
+        /// <summary>
+        /// Take a snapsot of the performance stats
+        /// </summary>
+        public PerformanceStats PerformanceSnapshot()
+        {
+            long nowmS = wallClockTimer.ElapsedMilliseconds;
+            int total = totalStats.lastTotal;
+            int wrkr = totalStats.lastToWorker;
+            int rtrd = totalStats.lastRetired;
+            intervalStats.snapMs = nowmS - intervalStats.lastMs;
+            intervalStats.snapTotal = total - intervalStats.lastTotal;
+            intervalStats.snapToWorker = wrkr - intervalStats.lastToWorker;
+            intervalStats.snapRetired = rtrd - intervalStats.lastRetired;
+            intervalStats.lastMs = nowmS;
+            intervalStats.lastTotal = total;
+            intervalStats.lastToWorker = wrkr;
+            intervalStats.lastRetired = rtrd;
+            return intervalStats;
         }
 
         /// <summary>
@@ -142,17 +185,17 @@ namespace Examples.Async {
                     workersBusy.Insert(worker.Index, null);
                     workersIdle.Add(worker);
                 }
-                statMsgRetired++;
-                msgCountSatisfied = options.Count > 0 && statMsgRetired >= options.Count;
+                totalStats.lastRetired++;
+                msgCountSatisfied = options.Count > 0 && totalStats.lastRetired >= options.Count;
                 if (msgCountSatisfied)
                 {
                     if (wallClockTimer.IsRunning) wallClockTimer.Stop();
                     receiver.SetCredit(options.CreditInitial, false);
                     if (options.LogDebug) LoggerDebug(string.Format("message count satisfied at {0} messages retired",
-                        statMsgRetired));
+                        totalStats.lastRetired));
                 }
                 if (options.LogTrace) LoggerTrace(string.Format("Rx Completion worker: {0}, messages retired {1}", 
-                    worker.Index, statMsgRetired));
+                    worker.Index, totalStats.lastRetired));
             }
             else
             {
@@ -176,9 +219,9 @@ namespace Examples.Async {
                 {
                     messageQueue.Add(message);
                 }
-                statMsgInTotal++;
+                totalStats.lastTotal++;
                 if (options.LogTrace) LoggerTrace(string.Format("Rx callback from Lite messagesIn:{0}",
-                    statMsgInTotal));
+                    totalStats.lastTotal));
             }
             else
             {
@@ -219,7 +262,7 @@ namespace Examples.Async {
 
                     // if possible and not overdoing it then give a message to a worker
                     while ((messageQueue.Count > 0 && workersIdle.Count > 0) && 
-                           !(options.Count > 0 && statMsgToWorker >= options.Count))
+                           !(options.Count > 0 && totalStats.lastToWorker >= options.Count))
                     {
                         Worker wrkr;
                         lock (this)
@@ -238,13 +281,13 @@ namespace Examples.Async {
                         if (options.LogTrace) LoggerTrace(string.Format("Launching worker: {0} with delay {1}",
                             wrkr.Index, wrkr.Delay));
                         wrkr.Run().Forget();
-                        statMsgToWorker++;
+                        totalStats.lastToWorker++;
                     }
                 }
                 LoggerInfo(string.Format("Instance {0} exiting. msgsIn= {1}, " +
                     "tasks={2}, msgsDone={3}; Performance: {4}",
-                    instance, statMsgInTotal, statMsgToWorker, statMsgRetired,
-                    Helpers.MessagesPerSecond(statMsgRetired, wallClockTimer.ElapsedMilliseconds)));
+                    instance, totalStats.lastTotal, totalStats.lastToWorker, totalStats.lastRetired,
+                    Helpers.MessagesPerSecond(totalStats.lastRetired, wallClockTimer.ElapsedMilliseconds)));
 
                 // flush messages in intermediate queue
                 foreach(Message m in messageQueue)
@@ -276,11 +319,25 @@ namespace Examples.Async {
             await Task.WhenAll(taskList.ToArray());
         }
 
+        public void PrintAggregatedStats(object obj)
+        {
+            List<Drain> dList = (List<Drain>) obj;
+            foreach (Drain d in dList)
+            {
+                PerformanceStats s = d.PerformanceSnapshot();
+                d.LoggerInfo(string.Format("perf snapshot: " +
+                "msgsIn= {0}, tasks={1}, msgsDone={2}; Performance: {3}",
+                s.snapTotal, s.snapToWorker, s.snapRetired, 
+                Helpers.MessagesPerSecond(s.snapRetired, s.snapMs)));
+            }
+        }
+
         static public int Main(string[] args)
         {
             Options options = new Options(args);
             if (options.Instances == 0)
                 return 0;
+            Timer intervalTimer;
 
             List<Drain> drainList = new List<Drain>();
             List<Task> taskList = new List<Task>();
@@ -291,6 +348,11 @@ namespace Examples.Async {
                 drainList.Add(thisDrain);
                 taskList.Add(thisTask);
             }
+
+            intervalTimer = new Timer(
+                drainList[0].PrintAggregatedStats, drainList, 
+                options.StatsInterval * 1000, options.StatsInterval * 1000);
+
             drainList[0].WaitForCompletion(taskList).Wait();
 
             // Produce a stats report aggregated across all instances.
@@ -300,9 +362,9 @@ namespace Examples.Async {
             long tMs = 0;
             for (int idx = 0; idx < options.Instances; idx++)
             {
-                tMessagesIn += drainList[idx].statMsgInTotal;
-                tTasksLaunched  += drainList[idx].statMsgToWorker;
-                tMessagesDone += drainList[idx].statMsgRetired;
+                tMessagesIn += drainList[idx].totalStats.lastTotal;
+                tTasksLaunched  += drainList[idx].totalStats.lastToWorker;
+                tMessagesDone += drainList[idx].totalStats.lastRetired;
                 tMs += drainList[idx].wallClockTimer.ElapsedMilliseconds;
             }
             tMs = tMs / options.Instances;

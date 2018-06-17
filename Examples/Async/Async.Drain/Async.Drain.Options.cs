@@ -36,6 +36,7 @@ namespace Examples.Async
         private bool   logTrace;
         private bool   quiet;
         //private bool   synchronous;
+        private int    statsInterval;
         private int    taskDelayMin;
         private int    taskDelayMax;
         private int    taskPoolSize;
@@ -54,6 +55,7 @@ namespace Examples.Async
             logDebug      = false;
             logTrace      = false;
             quiet         = false;
+            statsInterval = 0;
             //synchronous   = false;
             taskDelayMin = 10;
             taskDelayMax = 100;
@@ -82,6 +84,7 @@ namespace Examples.Async
             Console.WriteLine(" --instances INT         [1]     - run this many instances of Drain");
             Console.WriteLine(" --log-debug             [false] - print debug log to console");
             Console.WriteLine(" --log-trace             [false] - print trace log to console");
+            Console.WriteLine(" --stats-interval INT    [0]     - stats print interval in seconds. 0 disables stats printing");
             Console.WriteLine(" --quiet                 [false] - do not print each message's content");
             //Console.WriteLine(" --synchronous           [false] - read messages synchronously vs. using async callbacks");
             Console.WriteLine(" --task-delay-min-ms INT [10]    - minimum processing delay");
@@ -209,6 +212,15 @@ namespace Examples.Async
                         this.taskPoolSize = i;
                     }
                 }
+                else if (arg == "--stats-interval")
+                {
+                    arg = args[++current];
+                    int i = int.Parse(arg);
+                    if (i >= 0)
+                    {
+                        this.statsInterval = i;
+                    }
+                }
                 //else if (arg == "--synchronous")
                 //{
                 //    this.synchronous = true;
@@ -294,6 +306,10 @@ namespace Examples.Async
             get { return logTrace; }
         }
 
+        public int StatsInterval
+        {
+            get { return statsInterval; }
+        }
         public int TaskDelayMin
         {
             get { return taskDelayMin; }
