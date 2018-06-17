@@ -83,16 +83,14 @@ namespace Examples.Async {
 
         public void LoggerTrace(string ls)
         {
-            if (options.LogTrace)
-                Console.WriteLine(DateTime.Now.ToString("[hh:mm:ss.fff]") + 
-                    " TRACE Instance:" + instance + " " + ls);
+            Console.WriteLine(DateTime.Now.ToString("[hh:mm:ss.fff]") +
+                " TRACE Instance:" + instance + " " + ls);
         }
 
         public void LoggerDebug(string ls)
         {
-            if (options.LogDebug)
-                Console.WriteLine(DateTime.Now.ToString("[hh:mm:ss.fff]") + 
-                    " DEBUG Instance:" + instance + " " + ls);
+            Console.WriteLine(DateTime.Now.ToString("[hh:mm:ss.fff]") +
+                " DEBUG Instance:" + instance + " " + ls);
         }
 
         public void LoggerInfo(string ls)
@@ -106,7 +104,7 @@ namespace Examples.Async {
         /// </summary>
         public void OnTimedTimeout(Object source)
         {
-            LoggerDebug("Timeout expired");
+            if (options.LogDebug) LoggerDebug("Timeout expired");
             timesUp = true;
             if (wallClockTimer.IsRunning) wallClockTimer.Stop();
             receiver.SetCredit(options.CreditInitial, false);
@@ -150,10 +148,10 @@ namespace Examples.Async {
                 {
                     if (wallClockTimer.IsRunning) wallClockTimer.Stop();
                     receiver.SetCredit(options.CreditInitial, false);
-                    LoggerDebug(string.Format("message count satisfied at {0} messages retired", 
+                    if (options.LogDebug) LoggerDebug(string.Format("message count satisfied at {0} messages retired",
                         statMsgRetired));
                 }
-                LoggerTrace(string.Format("Rx Completion worker: {0}, messages retired {1}", 
+                if (options.LogTrace) LoggerTrace(string.Format("Rx Completion worker: {0}, messages retired {1}", 
                     worker.Index, statMsgRetired));
             }
             else
@@ -161,7 +159,7 @@ namespace Examples.Async {
                 // message that was in processing is done but now we are shutting down
                 if (!receiver.IsClosed)
                     receiver.Release(msg);
-                LoggerTrace(string.Format("Rx Completion worker: {0}. Shutting down, message released.", 
+                if (options.LogTrace) LoggerTrace(string.Format("Rx Completion worker: {0}. Shutting down, message released.",
                     worker.Index));
             }
             wake.Set();
@@ -179,7 +177,7 @@ namespace Examples.Async {
                     messageQueue.Add(message);
                 }
                 statMsgInTotal++;
-                LoggerTrace(string.Format("Rx callback from Lite messagesIn:{0}", 
+                if (options.LogTrace) LoggerTrace(string.Format("Rx callback from Lite messagesIn:{0}",
                     statMsgInTotal));
             }
             else
@@ -237,7 +235,7 @@ namespace Examples.Async {
                         // compute and set worker task 'processing time' in mS
                         wrkr.Delay = Convert.ToDouble(rnd.Next(options.TaskDelayMin, options.TaskDelayMax));
                         // run worker
-                        LoggerTrace(string.Format("Launching worker: {0} with delay {1}", 
+                        if (options.LogTrace) LoggerTrace(string.Format("Launching worker: {0} with delay {1}",
                             wrkr.Index, wrkr.Delay));
                         wrkr.Run().Forget();
                         statMsgToWorker++;
