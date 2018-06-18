@@ -153,7 +153,8 @@ namespace Examples.Async {
             if (options.LogDebug) LoggerDebug("Timeout expired");
             timesUp = true;
             if (wallClockTimer.IsRunning) wallClockTimer.Stop();
-            receiver.SetCredit(options.CreditInitial, false);
+            if (!options.AutoReceive)
+                receiver.SetCredit(options.CreditInitial, false);
             wake.Set();
         }
 
