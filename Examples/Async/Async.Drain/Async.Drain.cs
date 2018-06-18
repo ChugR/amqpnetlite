@@ -19,6 +19,9 @@
  *
  */
 
+#define USE_LITE_RECEIVER
+//#define USE_FAKE_RECEIVER
+
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -46,7 +49,7 @@ namespace Examples.Async {
             snapTotal = 0;
             snapToWorker = 0;
             snapRetired = 0;
-            // last snapshot <= current
+            // starting point for next snapshot
             lastMs = 0;
             lastTotal = 0;
             lastToWorker = 0;
@@ -179,7 +182,11 @@ namespace Examples.Async {
         {
             if (!ExitSignaled())
             {
-                receiver.Accept(msg);
+                if (options.AutoReceive)
+                    msg.Dispose();
+                else
+                    receiver.Accept(msg);
+
                 lock (this)
                 {
                     workersBusy.Insert(worker.Index, null);
@@ -190,7 +197,8 @@ namespace Examples.Async {
                 if (msgCountSatisfied)
                 {
                     if (wallClockTimer.IsRunning) wallClockTimer.Stop();
-                    receiver.SetCredit(options.CreditInitial, false);
+                    if (!options.AutoReceive)
+                        receiver.SetCredit(options.CreditInitial, false);
                     if (options.LogDebug) LoggerDebug(string.Format("message count satisfied at {0} messages retired",
                         totalStats.lastRetired));
                 }
@@ -200,8 +208,12 @@ namespace Examples.Async {
             else
             {
                 // message that was in processing is done but now we are shutting down
-                if (!receiver.IsClosed)
-                    receiver.Release(msg);
+
+                if (options.AutoReceive)
+                    msg.Dispose();
+                else
+                    if (!receiver.IsClosed)
+                        receiver.Release(msg);
                 if (options.LogTrace) LoggerTrace(string.Format("Rx Completion worker: {0}. Shutting down, message released.",
                     worker.Index));
             }
@@ -230,6 +242,25 @@ namespace Examples.Async {
             wake.Set();
         }
 
+        public void fakeMessageReceived(Message message)
+        {
+            if (!ExitSignaled())
+            {
+                lock (this)
+                {
+                    messageQueue.Add(message);
+                }
+                totalStats.lastTotal++;
+                if (options.LogTrace) LoggerTrace(string.Format("Rx callback from Lite messagesIn:{0}",
+                    totalStats.lastTotal));
+            }
+            else
+            {
+                message.Dispose();
+            }
+            wake.Set();
+        }
+
         /// <summary>
         /// Drain main loop.
         /// </summary>
@@ -239,22 +270,37 @@ namespace Examples.Async {
             try
             {
                 LoggerInfo(string.Format("Async.Drain starting. " +
-                    "Url:{0}, address:{1}, credit:{2}, count:{3}, duration:{4}",
-                    options.Url, options.Address, options.CreditInitial, options.Count, options.TestDuration));
-                Address address = new Address(options.Url);
-                connection = await Connection.Factory.CreateAsync(address);
-                Session session = new Session(connection);
-                receiver = new ReceiverLink(session, 
-                                            "receiver-drain-" + options.Instances.ToString(), 
-                                            options.Address);
-
+                    "Url:{0}, address:{1}, credit:{2}, count:{3}, duration:{4}, autoReceive:{5}",
+                    options.Url, options.Address, options.CreditInitial, options.Count,
+                    options.TestDuration, options.AutoReceive));
                 Random rnd = new Random();
-                
-                wallClockTimer.Start();
-                receiver.Start(options.CreditInitial, (r, m) =>
+                Address address = null;
+                Session session = null;
+    
+                if (!options.AutoReceive)
                 {
-                    messageReceived(r, m); // this is the receive callback entry point
-                });
+                    address = new Address(options.Url);
+                    connection = await Connection.Factory.CreateAsync(address);
+                    session = new Session(connection);
+                    receiver = new ReceiverLink(session, 
+                                                "receiver-drain-" + options.Instances.ToString(), 
+                                                options.Address);
+                    wallClockTimer.Start();
+
+                    receiver.Start(options.CreditInitial, (r, m) =>
+                    {
+                        messageReceived(r, m); // this is the receive callback entry point
+                    });
+                }
+                else
+                {
+                    wallClockTimer.Start();
+                    for (int i=0; i<options.CreditInitial/2; i++)
+                    {
+                        Message msg = new Message("abc");
+                        fakeMessageReceived(msg);
+                    }
+                }
 
                 while (!ExitSignaled())
                 {
@@ -282,6 +328,12 @@ namespace Examples.Async {
                             wrkr.Index, wrkr.Delay));
                         wrkr.Run().Forget();
                         totalStats.lastToWorker++;
+                        // replenish if autoReceive
+                        if (options.AutoReceive)
+                        {
+                            Message msg = new Message("abc");
+                            fakeMessageReceived(msg);
+                        }
                     }
                 }
                 LoggerInfo(string.Format("Instance {0} exiting. msgsIn= {1}, " +
@@ -292,17 +344,23 @@ namespace Examples.Async {
                 // flush messages in intermediate queue
                 foreach(Message m in messageQueue)
                 {
-                    receiver.Release(m);
+                    if (options.AutoReceive)
+                        m.Dispose();
+                    else
+                        receiver.Release(m);
                 }
 
                 // Closing the receiver immediately may hang. 
                 // Give the receiver time to deliver prefetched messages
                 // and to return any Released status we signal for them.
-                await Task.Delay(500);
+                if (!options.AutoReceive)
+                {
+                    await Task.Delay(500);
 
-                receiver.Close();
-                session.Close();
-                connection.Close();
+                    receiver.Close();
+                    session.Close();
+                    connection.Close();
+                }
             }
             catch (Exception e)
             {

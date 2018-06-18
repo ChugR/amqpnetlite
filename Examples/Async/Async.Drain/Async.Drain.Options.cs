@@ -26,6 +26,7 @@ namespace Examples.Async
     public class Options
     {
         private string address;
+        private bool autoReceive;
         private int    count;
         private int    creditInitial;
         private bool   creditManual;
@@ -46,6 +47,7 @@ namespace Examples.Async
         public Options(string[] args)
         {
             address       = "";
+            autoReceive   = false;
             count         = 1;
             creditInitial = 10;
             creditManual  = false;
@@ -75,6 +77,7 @@ namespace Examples.Async
             Console.WriteLine("  Multiple instances may be launched, each sharing same options.");
             Console.WriteLine("Options:");
             Console.WriteLine(" --address STRING        []      - AMQP 1.0 terminus name");
+            Console.WriteLine(" --auto-receive          [false] - generate/dispose messages locally and not involve Lite reciever");
             Console.WriteLine(" --broker [amqp://guest:guest@127.0.0.1:5672] - AMQP 1.0 peer connection address");
             Console.WriteLine(" --count INT             [1]     - receive this many messages and exit; 0 disables count based exit");
             Console.WriteLine(" --credit-initial INT    [10]    - receiver initial credit");
@@ -221,6 +224,10 @@ namespace Examples.Async
                         this.statsInterval = i;
                     }
                 }
+                else if (arg == "--auto-receive")
+                {
+                    this.autoReceive = true;
+                }
                 //else if (arg == "--synchronous")
                 //{
                 //    this.synchronous = true;
@@ -328,6 +335,11 @@ namespace Examples.Async
         public bool Quiet
         {
             get { return quiet; }
+        }
+
+        public bool AutoReceive 
+        {
+            get { return autoReceive; }
         }
     }
 }
